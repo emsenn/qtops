@@ -262,8 +262,11 @@
   		 ((hash-ref commands first-word) parsed-args)]
   		[(member first-word (thing-talker-channels parsing-thing))
   		 (when (hash-has-key? parsed-args 'line)
-  		   ((universe-procedure (thing-universe parsing-thing) 'broadcast)
-  		    (hash-ref parsed-args 'line)))]
+  		   ((universe-procedure (thing-universe parsing-thing)
+  					'broadcast-message-from-thing-to-talker-channel)
+  		    (hash-ref parsed-args 'line)
+  		    parsing-thing
+  		    first-word))]
   		[else (set! response "Invalid command.")]))
   	(when (> (string-length response) 0)
   	  (add-string-to-thing-mudsocket-output-buffer! response parsing-thing))))))
@@ -444,7 +447,7 @@
       (add-mudsocket-output-buffer-to-thing! connected-thing)
       (add-mudsocket-sender-to-thing! connected-thing)
       (add-mudsocket-parser-to-thing! connected-thing
-        (make-mudsocket-login-parser-for-thing connected-thing))
+	(make-mudsocket-login-parser-for-thing connected-thing))
       (add-talker-channels-to-thing! connected-thing)
       (add-mudsocket-commands-to-thing! connected-thing)
       (set! current-connections (append (list connected-thing) current-connections))
@@ -456,7 +459,7 @@
 	     (add-string-to-thing-mudsocket-output-buffer!
 	      (format "Your connection to ~a has been accepted."
 		      (universe-name ticked-universe))
-              connected-thing)]))
+	      connected-thing)]))
     (map
      (λ (connected-thing)
        (let ([connected-thing-name (thing-name connected-thing)]
@@ -500,5 +503,11 @@
       (accept-new-connection))
     (add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
   (set-universe-procedure! this-universe 'list-mudsocket-current-connections
-   (λ () current-connections))
+			   (λ () current-connections))
+  (set-universe-procedure! this-universe
+			   'add-string-to-thing-mudsocket-output-buffer!
+			   (λ (added-string
+			       changed-thing)
+			     (add-string-to-thing-mudsocket-output-buffer!
+			      added-string changed-thing)))
   tick-mudsocket-event)

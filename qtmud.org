@@ -630,85 +630,91 @@ old:
 *** make-mudsocket-tick-event-for-universe
 #+name: make-mudsocket-tick-event-for-universe
 #+begin_src racket :noweb yes
-  (define (make-mudsocket-tick-event-for-universe this-universe [port 4242])
-    (log-debug "Making a MUDSocket tick event.")
-    (define mudsocket-listener (tcp-listen port 5 #t))
-    (define current-connections '())
-    (define (tick-mudsocket-event ticked-universe)
-      (define (accept-new-connection)
-	(define-values (mudsocket-in mudsocket-out)
-	  (tcp-accept mudsocket-listener))
-	(define-values (local-ip local-port remote-ip remote-port)
-	  (tcp-addresses mudsocket-in #t))
-	(log-info "MUDSocket accepted a new connection from ~a:~a"
-		  remote-ip remote-port)
-	(define connected-thing
-	  (make-thing "MUDSocket client" ticked-universe))
-	(add-mudsocket-in-to-thing! connected-thing mudsocket-in)
-	(add-mudsocket-out-to-thing! connected-thing mudsocket-out)
-	(add-mudsocket-ip-to-thing! connected-thing remote-ip)
-	(add-mudsocket-port-to-thing! connected-thing remote-port)
-        (add-mudsocket-output-buffer-to-thing! connected-thing)
-	(add-mudsocket-sender-to-thing! connected-thing)
-	(add-mudsocket-parser-to-thing! connected-thing
-          (make-mudsocket-login-parser-for-thing connected-thing))
-	(add-talker-channels-to-thing! connected-thing)
-	(add-mudsocket-commands-to-thing! connected-thing)
-	(set! current-connections (append (list connected-thing) current-connections))
-	(add-thing-to-universe-things! connected-thing this-universe)
-	(cond [(universe-has-procedure? this-universe 'handle-mudsocket-connection)
-	       ((universe-procedure this-universe 'handle-mudsocket-connection)
-		connected-thing)]
-	      [else
-	       (add-string-to-thing-mudsocket-output-buffer!
-		(format "Your connection to ~a has been accepted."
-			(universe-name ticked-universe))
-                connected-thing)]))
-      (map
-       (λ (connected-thing)
-	 (let ([connected-thing-name (thing-name connected-thing)]
-	       [connected-thing-mudsocket-in (thing-mudsocket-in connected-thing)]
-	       [connected-thing-mudsocket-out (thing-mudsocket-out connected-thing)]
-	       [connected-thing-mudsocket-ip (thing-mudsocket-ip connected-thing)]
-	       [connected-thing-mudsocket-port (thing-mudsocket-port connected-thing)]
-	       [connected-thing-mudsocket-output-buffer (thing-mudsocket-output-buffer connected-thing)]
-	       [connected-thing-mudsocket-parser (thing-mudsocket-parser connected-thing)]
-	       [connected-thing-mudsocket-sender (thing-mudsocket-sender connected-thing)])
-	   (define (disconnect)
-	     (close-input-port connected-thing-mudsocket-in)
-	     (close-output-port connected-thing-mudsocket-out)
-	     (set! current-connections (remove connected-thing current-connections))
-	     (log-info "MUDSocket disconnected connection from ~a:~a"
-		       connected-thing-mudsocket-ip
-		       connected-thing-mudsocket-port))
-	   ; todo: add ^-- (destroy-thing connected-thing) above
-	   (cond
-	     [(port-closed? connected-thing-mudsocket-in)
-	      (disconnect)]
-	     [(byte-ready? connected-thing-mudsocket-in)
-	      (with-handlers
-		  ([exn:fail:read?
+    (define (make-mudsocket-tick-event-for-universe this-universe [port 4242])
+      (log-debug "Making a MUDSocket tick event.")
+      (define mudsocket-listener (tcp-listen port 5 #t))
+      (define current-connections '())
+      (define (tick-mudsocket-event ticked-universe)
+	(define (accept-new-connection)
+	  (define-values (mudsocket-in mudsocket-out)
+	    (tcp-accept mudsocket-listener))
+	  (define-values (local-ip local-port remote-ip remote-port)
+	    (tcp-addresses mudsocket-in #t))
+	  (log-info "MUDSocket accepted a new connection from ~a:~a"
+		    remote-ip remote-port)
+	  (define connected-thing
+	    (make-thing "MUDSocket client" ticked-universe))
+	  (add-mudsocket-in-to-thing! connected-thing mudsocket-in)
+	  (add-mudsocket-out-to-thing! connected-thing mudsocket-out)
+	  (add-mudsocket-ip-to-thing! connected-thing remote-ip)
+	  (add-mudsocket-port-to-thing! connected-thing remote-port)
+	  (add-mudsocket-output-buffer-to-thing! connected-thing)
+	  (add-mudsocket-sender-to-thing! connected-thing)
+	  (add-mudsocket-parser-to-thing! connected-thing
+	    (make-mudsocket-login-parser-for-thing connected-thing))
+	  (add-talker-channels-to-thing! connected-thing)
+	  (add-mudsocket-commands-to-thing! connected-thing)
+	  (set! current-connections (append (list connected-thing) current-connections))
+	  (add-thing-to-universe-things! connected-thing this-universe)
+	  (cond [(universe-has-procedure? this-universe 'handle-mudsocket-connection)
+		 ((universe-procedure this-universe 'handle-mudsocket-connection)
+		  connected-thing)]
+		[else
+		 (add-string-to-thing-mudsocket-output-buffer!
+		  (format "Your connection to ~a has been accepted."
+			  (universe-name ticked-universe))
+		  connected-thing)]))
+	(map
+	 (λ (connected-thing)
+	   (let ([connected-thing-name (thing-name connected-thing)]
+		 [connected-thing-mudsocket-in (thing-mudsocket-in connected-thing)]
+		 [connected-thing-mudsocket-out (thing-mudsocket-out connected-thing)]
+		 [connected-thing-mudsocket-ip (thing-mudsocket-ip connected-thing)]
+		 [connected-thing-mudsocket-port (thing-mudsocket-port connected-thing)]
+		 [connected-thing-mudsocket-output-buffer (thing-mudsocket-output-buffer connected-thing)]
+		 [connected-thing-mudsocket-parser (thing-mudsocket-parser connected-thing)]
+		 [connected-thing-mudsocket-sender (thing-mudsocket-sender connected-thing)])
+	     (define (disconnect)
+	       (close-input-port connected-thing-mudsocket-in)
+	       (close-output-port connected-thing-mudsocket-out)
+	       (set! current-connections (remove connected-thing current-connections))
+	       (log-info "MUDSocket disconnected connection from ~a:~a"
+			 connected-thing-mudsocket-ip
+			 connected-thing-mudsocket-port))
+	     ; todo: add ^-- (destroy-thing connected-thing) above
+	     (cond
+	       [(port-closed? connected-thing-mudsocket-in)
+		(disconnect)]
+	       [(byte-ready? connected-thing-mudsocket-in)
+		(with-handlers
+		    ([exn:fail:read?
+		      (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
+					  connected-thing-name
+					  e))]
+		   [exn:fail:network:errno?
 		    (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
 					connected-thing-name
-					e))]
-		 [exn:fail:network:errno?
-		  (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
-				      connected-thing-name
-				      e))])
-		(let ([connected-thing-line-in (read-line connected-thing-mudsocket-in)])
-		  (cond [(string? connected-thing-line-in)
-			 (connected-thing-mudsocket-parser (string-trim connected-thing-line-in))]
-			[(eof-object? connected-thing-line-in)
-			 (disconnect)])))])
-		(when (> (string-length connected-thing-mudsocket-output-buffer) 0)
-		  (connected-thing-mudsocket-sender))))
-       current-connections)
-      (when (tcp-accept-ready? mudsocket-listener)
-	(accept-new-connection))
-      (add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
-    (set-universe-procedure! this-universe 'list-mudsocket-current-connections
-     (λ () current-connections))
-    tick-mudsocket-event)
+					e))])
+		  (let ([connected-thing-line-in (read-line connected-thing-mudsocket-in)])
+		    (cond [(string? connected-thing-line-in)
+			   (connected-thing-mudsocket-parser (string-trim connected-thing-line-in))]
+			  [(eof-object? connected-thing-line-in)
+			   (disconnect)])))])
+		  (when (> (string-length connected-thing-mudsocket-output-buffer) 0)
+		    (connected-thing-mudsocket-sender))))
+	 current-connections)
+	(when (tcp-accept-ready? mudsocket-listener)
+	  (accept-new-connection))
+	(add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
+      (set-universe-procedure! this-universe 'list-mudsocket-current-connections
+			       (λ () current-connections))
+      (set-universe-procedure! this-universe
+			       'add-string-to-thing-mudsocket-output-buffer!
+			       (λ (added-string
+				   changed-thing)
+				 (add-string-to-thing-mudsocket-output-buffer!
+				  added-string changed-thing)))
+      tick-mudsocket-event)
 
 
 #+end_src
@@ -938,46 +944,49 @@ old:
 **** make-mudsocket-parser-for-thing
 #+name: make-mudsocket-parser-for-thing-procedure
 #+begin_src racket :noweb no-export
-  (define (make-mudsocket-parser-for-thing parsing-thing)
-    (define (parse-args args)
-      (let ([results (make-hash)])
-	(map
-	 (λ (arg)
-	   (cond [(and (> (string-length arg) 2)
-		       (string=? (substring arg 0 2) "--"))
-		  (let* ([split-arg (string-split arg "=")]
-			 [arg-key (substring (car split-arg) 2)]
-			 [arg-value (cdr split-arg)])
-		    (hash-set! results arg-key arg-value))]
-		 [(string=? (substring arg 0 1) "-")
-		  (map
-		   (λ (char)
-		     (hash-set! results char #t)))]
-		 [else (hash-set! results 'line (cond [(hash-has-key? results 'line)
-						       (append (hash-ref results 'line)
-							       (list arg))]
-						      [else (list arg)]))]))
-	 args)
-	(when (hash-has-key? results 'line)
-	  (hash-set! results 'line (string-join (hash-ref results 'line))))
-	results))
-    (λ (input-line)
-      (let ([response ""]
-	    [commands (thing-mudsocket-commands parsing-thing)])
-	(log-debug "Parsing a line from ~a:\n  ~a" (thing-name parsing-thing) input-line)
-	(when (> (string-length input-line) 0)
-	  (let* ([split-input-line (string-split input-line)]
-		 [first-word (car split-input-line)]
-		 [parsed-args (parse-args (cdr split-input-line))])
-	    (cond [(hash-has-key? commands first-word)
-		   ((hash-ref commands first-word) parsed-args)]
-		  [(member first-word (thing-talker-channels parsing-thing))
-		   (when (hash-has-key? parsed-args 'line)
-		     ((universe-procedure (thing-universe parsing-thing) 'broadcast)
-		      (hash-ref parsed-args 'line)))]
-		  [else (set! response "Invalid command.")]))
-	  (when (> (string-length response) 0)
-	    (add-string-to-thing-mudsocket-output-buffer! response parsing-thing))))))
+    (define (make-mudsocket-parser-for-thing parsing-thing)
+      (define (parse-args args)
+	(let ([results (make-hash)])
+	  (map
+	   (λ (arg)
+	     (cond [(and (> (string-length arg) 2)
+			 (string=? (substring arg 0 2) "--"))
+		    (let* ([split-arg (string-split arg "=")]
+			   [arg-key (substring (car split-arg) 2)]
+			   [arg-value (cdr split-arg)])
+		      (hash-set! results arg-key arg-value))]
+		   [(string=? (substring arg 0 1) "-")
+		    (map
+		     (λ (char)
+		       (hash-set! results char #t)))]
+		   [else (hash-set! results 'line (cond [(hash-has-key? results 'line)
+							 (append (hash-ref results 'line)
+								 (list arg))]
+							[else (list arg)]))]))
+	   args)
+	  (when (hash-has-key? results 'line)
+	    (hash-set! results 'line (string-join (hash-ref results 'line))))
+	  results))
+      (λ (input-line)
+	(let ([response ""]
+	      [commands (thing-mudsocket-commands parsing-thing)])
+	  (log-debug "Parsing a line from ~a:\n  ~a" (thing-name parsing-thing) input-line)
+	  (when (> (string-length input-line) 0)
+	    (let* ([split-input-line (string-split input-line)]
+		   [first-word (car split-input-line)]
+		   [parsed-args (parse-args (cdr split-input-line))])
+	      (cond [(hash-has-key? commands first-word)
+		     ((hash-ref commands first-word) parsed-args)]
+		    [(member first-word (thing-talker-channels parsing-thing))
+		     (when (hash-has-key? parsed-args 'line)
+		       ((universe-procedure (thing-universe parsing-thing)
+					    'broadcast-message-from-thing-to-talker-channel)
+			(hash-ref parsed-args 'line)
+			parsing-thing
+			first-word))]
+		    [else (set! response "Invalid command.")]))
+	    (when (> (string-length response) 0)
+	      (add-string-to-thing-mudsocket-output-buffer! response parsing-thing))))))
 #+end_src
 **** make-mudsocket-login-parser-for-thing
 #+name: make-mudsocket-login-parser-for-thing-procedure
@@ -1272,7 +1281,67 @@ commanding-thing)]))))
 *** parent-poliregion
 *** poliregions
 ** draft Talker
-*** talker-channels
+*** Make talker setup event
+#+name: make-talker-setup-event-procedure
+#+begin_src racket
+  (define (add-thing-to-talker-channel listening-thing
+				       active-talker
+				       listened-channel)
+    (hash-set! active-talker listened-channel)
+      (append (hash-ref active-talker listened-channel)
+	      (list listening-thing)))
+  (define (remove-thing-from-talker-channel unlistening-thing
+					    active-talker
+					    unlistened-channel)
+    (let ([active-channel (hash-ref active-talker unlistened-channel)])
+      (hash-set! active-talker unlistened-channel
+		 (remove active-channel unlistening-thing))))
+  (define (broadcast-message-from-thing-to-talker-channel message
+							  chatting-thing
+							  active-talker
+							  target-channel)
+    (let ([broadcast-message (format "(~a) ~a: ~a"
+				     target-channel
+				     (thing-name chatting-thing)
+				     message)])
+      (map
+       (λ (listening-thing)
+	 ((universe-procedure listening-thing
+			      'add-string-to-thing-mudsocket-output-buffer!)
+	  broadcast-message
+	  listening-thing))
+       (hash-ref active-talker target-channel))))
+  (define (make-talker-setup-event [starter-channels '("cq")])
+    (define talker (make-hash
+		    (map (λ (talker-channel)
+			   (cons talker-channel (list)))
+			 starter-channels)))
+    (λ (calling-universe)
+      (set-universe-procedure!
+       calling-universe
+       'talker (λ () talker))
+      (set-universe-procedure!
+       calling-universe
+       'add-thing-to-talker-channel
+       (λ (listening-thing listened-channel)
+	 (add-thing-to-talker-channel listening-thing talker listened-channel)))
+      (set-universe-procedure!
+       calling-universe
+       'remove-thing-from-talker-channel
+       (λ (unlistening-thing unlistened-channel)
+	 (remove-thing-from-talker-channel unlistening-thing
+					   talker
+					   unlistened-channel)))
+      (set-universe-procedure!
+       calling-universe
+       'broadcast-message-from-thing-to-talker-channel
+       (λ (message chatting-thing target-channel)
+	 (broadcast-message-from-thing-to-talker-channel message
+							 chatting-thing
+							 talker
+							 target-channel)))))
+#+end_src
+*** Talker channels quality
 **** thing-talker-channels
 #+name: thing-talker-channels-procedure
 #+begin_src racket :noweb yes
@@ -1584,91 +1653,6 @@ commanding-thing)]))))
   :PROPERTIES:
   :header-args: :noweb yes
   :END:
-** draft emsMUD
-   :PROPERTIES:
-   :EXPORT_FILE_NAME: emsmud
-   :EXPORT_HUGO_SECTION: programming
-   :END:
-*/emsMUD/* is a simple MUD written for qtMUD, and the personal playground of emsenn.
-#+toc: headlines 1 local
-*** Player Guide
-Right now there isn't gameplay as such. Sorry!
-*** MUD Code
-#+toc: headlines 6 local
-**** Creation
-***** Create the emsVerse
-#+name: emsmud-declarations-create-the-emsverse
-#+begin_src racket
-  (define emsverse (make-universe "emsVerse"))
-  (run-universe-logger (make-universe-logger emsverse))
-  (define make-thing (make-thing-maker-for-universe emsverse))
-#+end_src
-****** Create areas
-#+name: emsmud-declarations-create-areas
-#+begin_src racket
-(define clearing (make-thing "grassy clearing"))
-(define garden (make-thing "small garden"))
-(define home (make-thing "emsenn's home"))
-(define emsverse-map (make-map-from-areas
- `((clearing . ,clearing) (garden . ,garden) (home . ,home))))
-#+end_src
-******* Set area contents
-#+name: emsmud-declarations-set-area-contents
-#+begin_src racket
-(map (λ (area) (set-thing-contents! area '())) emsverse-map)
-#+end_src
-******* Set area exits
-#+name: emsmud-declarations-set-area-exits
-#+begin_src racket
-  (set-thing-area-exits! clearing `(("garden" . ,garden) ("home" . ,home)))
-  (set-thing-area-exits! garden `(("clearing" . ,clearing)))
-  (set-thing-area-exits! home `(("out" . ,clearing)))
-#+end_src
-******* Set area descriptions
-#+name: emsmud-declarations-set-area-descriptions
-#+begin_src racket
-  (set-thing-area-description! clearing
-			       "This is a grassy field, roughly 100 meters across, located in a temperate decidious forest. There is a small structure made from coppice poles and woven panels of bark constructed in the western part of the clearing, Near the middle of the clearing is a garden, just south of a large mulberry tree.")
-  (set-thing-area-description! garden
-			       "This is a garden.")
-  (set-thing-area-description! home
-			       "This is a small structure made of young pine tree trunks driven into the ground to form a cone, with long planes of wood bark woven between the beams.")
-#+end_src
-**** Setup game
-***** Add library components
-#+name: emsmud-declarations-add-library-components
-#+begin_src racket
-(add-event-to-universe-schedule! (make-mudsocket-tick-event-for-universe emsverse) emsverse)
-(add-event-to-universe-schedule! (add-user-accounts-to-universe!-event "emsmud-user-accounts.rktd") emsverse)
-#+end_src
-***** Configure MUDSocket
-#+name: emsmud-declarations-configure-mudsocket
-#+begin_src racket
-  (set-universe-procedure! emsverse 'handle-mudsocket-connection
-   (λ (connected-thing)
-    (add-string-to-thing-mudsocket-output-buffer! "You've connected to emsMUD, a small virtual world created by emsenn. Please, enter your [desired] user-name and press ENTER to connect [or register a new account]." connected-thing)))
-
-  (set-universe-procedure!
-   emsverse 'handle-mudsocket-login
-   (λ (connected-thing)
-     (add-string-to-thing-mudsocket-output-buffer!
-      (format
-       "Welcome to emsMUD, ~a. Interact by typing commands and pressing ENTER. Try starting with the \"help\" command.\n\nYou form, a fully-realized adult homo sapien, clothed in buckskin, into the universe."
-       (thing-name connected-thing))
-      connected-thing)
-     (add-thing-to-thing-contents! connected-thing clearing)
-     (add-new-mudsocket-commands-to-thing!
-      (list
-       (cons "look" (make-look-mudsocket-command-for-thing connected-thing))
-       (cons "move" (make-move-mudsocket-command-for-thing connected-thing)))
-      connected-thing)))
-#+end_src
-**** Start time
-
-#+name: emsmud-declarations-start-time
-#+begin_src racket
-(define emsmud (run-universe emsverse))
-#+end_src
 ** draft Johara-MUD
    :PROPERTIES:
    :EXPORT_FILE_NAME: johara-mud
@@ -1891,6 +1875,57 @@ Johara settlement, in Johara Forest. [0/10]
       I also haven't done any real consideration of how to track plans - or done anything to set up a git repository!
 
       In order to that, I need to clean up the Org-mode file which holds the project work. This leads me to wonder if there's any sort of cross-compatibility between Org-mode and Git, or... I'm not sure exactly what I'd make use of.
+**** 2020-08-20 Thursday
+***** [2020-08-20 Thu 10:07]
+      :PROPERTIES:
+      :EXPORT_DATE: [2020-08-20 Thu 10:07]
+      :EXPORT_FILE_NAME: 2020-08-20-10-7
+      :END:
+      Ahhh heck. I think I need to change how Things work.
+
+      So right now, for every quality, there's procedures like =set-thing-area-exits!=.
+
+      This is really verbose, leads to lots of copy-pasting of code that might be nearly identical between qualities, except quality-name.
+
+      So, maybe what I should do is have the basic set of thing-quality APIs check universes and things for these procedures, as keys inside hashtables, the way certain things like the MUDSocket check the =universe-procedures= for a custom login message, for example.
+
+      This requires a new thing struct:
+
+      #+begin_src racket
+      (struct thing (name universe grammar qualities procedures))
+      #+end_src
+
+      And a new =make-thing= procedure, but we'll skip that for now to look at how the new =set-thing-quality!= might look:
+
+      #+begin_src racket
+	(define (join-list-of-strings-and-symbols-as-string unjoined-list string-separator)
+	  (string-join
+	   (map (λ (list-element)
+		  (cond [(string? list-element) list-element]
+			[(symbol? list-element) (symbol->string list-element)]))
+		unjoined-list)
+	   string-separator))
+
+	(define (set-thing-quality! changed-thing changed-quality new-value)
+	  (let ([set-thing-quality!-procedure-key
+		 (string->symbol
+		  (join-list-of-strings-and-symbols-as-string
+		   (list "set-thing-" changed-quality "!")))])
+	    (cond [(thing-has-procedure? set-thing-quality!-procedure-key)
+		   ((thing-procedure set-thing-quality!-procedure-key)
+		    changed-thing new-value)]
+		  [(and (thing-has-universe? changed-thing)
+			(universe-has-procedure? (thing-universe changed-thing)
+						 set-thing-quality!-procedure-key))
+		   ((universe-procedure (thing-universe changed-thing)
+					set-thing-quality!-procedure-key)
+		    changed-thing new-value)]
+		  [else
+		   (hash-set! (thing-qualities changed-thing)
+			      changed-quality new-value)])))
+      #+end_src
+
+      That's the idea anyway. This seems like a good choice of time to make use of the recently set-up git repository that this code rests in, to make a branch and tinker in it for a bit... after I take care of some real-world chores.
 * Complete Files
   :PROPERTIES:
   :EXPORT_HUGO_SECTION: programming/qtmud/files/
@@ -2158,11 +2193,15 @@ Johara settlement, in Johara Forest. [0/10]
   (provide thing-talker-channels
 	  thing-has-talker-channels?
 	  set-thing-talker-channels!
-	  add-talker-channels-to-thing!)
-    <<thing-talker-channels-procedure>>
-    <<thing-has-talker-channels?-procedure>>
-    <<set-thing-talker-channels!-procedure>>
-    <<add-talker-channels-to-thing!-procedure>>
+	  add-talker-channels-to-thing!
+	  make-talker-setup-event)
+
+
+  <<make-talker-setup-event-procedure>>
+  <<thing-talker-channels-procedure>>
+  <<thing-has-talker-channels?-procedure>>
+  <<set-thing-talker-channels!-procedure>>
+  <<add-talker-channels-to-thing!-procedure>>
 
 #+end_src
 *** terraforming.rkt
@@ -2226,39 +2265,3 @@ Johara settlement, in Johara Forest. [0/10]
 <<add-user-accounts-to-universe!-event-procedure>>
 
 #+end_src
-** muds/
-*** emsmud.rkt
-#+name: emsmud.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/muds/emsmud.rkt
-#lang racket
-
-(require "../qtmud.rkt"
-         "../components/areas.rkt"
-         "../components/animation.rkt"
-         "../components/containers.rkt"
-         "../components/mudsocket.rkt"
-         "../components/talker.rkt"
-         "../components/user-accounts.rkt")<
-<<emsmud-declarations-create-the-emsverse>>
-<<emsmud-declarations-create-areas>>
-<<emsmud-declarations-set-area-exits>>
-<<emsmud-declarations-set-area-descriptions>>
-<<emsmud-declarations-add-library-components>>
-<<emsmud-declarations-configure-mudsocket>>
-<<emsmud-declarations-start-time>>
-#+end_src
-*** johara-mud.rkt
-#+name: johara-mud.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/muds/johara-mud.rkt
-#lang racket
-
-(require "../qtmud.rkt"
-         "../components/mudsocket.rkt"
-         "../components/talker.rkt"
-         "../components/user-accounts.rkt")
-
-<<johara-mud-declarations-creation>>
-<<johara-mud-declarations-addition-of-mud-basics>>
-<<johara-mud-declarations-start-of-time>>
-#+end_src
-)
