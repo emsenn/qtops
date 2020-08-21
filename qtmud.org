@@ -2,12 +2,9 @@
 #+hugo_base_dir: ~/hugo/emsenn-net
 #+hugo_section: /programming/qtmud
 #+header-args: :noweb yes
-#+setupfile: https://fniessen.github.io/org-html-themes/setup/theme-bigblow.setup
 #+todo: plan draft code document test | released
 #+todo: - | cancelled
 #+options: todo:t
-#+macro: struct [[https://emsenn.net/programming/qtmud/structs/$1][$1]]
-#+macro: procedure [[https://emsenn.net/programming/qtmud/procedures/$1][$1]]
 */qtMUD/* is a game engine for running a multi-user dimension, or /MUD/: traditionally text-interface online services, typically role-playing games.
 
 It is in /super/-*/duper/* early development. Not only are there a tremendous amount of bugs, but the code that does work doesn't follow a unified style, has very little documentation, and is incredibly inefficient. /Sorry!/
@@ -40,6 +37,12 @@ I'm changing the name of the project to qtMUD, for the "/qualities/ of /things/ 
    :PROPERTIES:
    :EXPORT_FILE_NAME: qtmud-overview
    :END:
+** Developers Guide
+As qtMUD is right now just being developed by me, the developer's guide is going to, for now, be a list of rules. Maybe as it grows they'll be sorted into contexts.
+
+1. Never assume a thing is part of a universe
+2. When you want to do something, see if the thing or its universe has a procedure for it.
+3. Keep your manipulation of things as atomic as possible, so that your procedures can be referenced by other parts of the library.
 * Engine Code
   :PROPERTIES:
   :header-args: :noweb yes
@@ -54,53 +57,40 @@ The things that exist within the MUD: player-characters, items, game areas, are 
 ** Thing
 #+name: thing-struct
 #+begin_src racket
-    (struct thing
-      (name universe
-	    grammar
-	    qualities)
-      #:mutable)
+  (struct thing (name universe grammar qualities procedures) #:mutable)
 #+end_src
-*** Making a Thing
-**** make-thing
-     :PROPERTIES:
-     :EXPORT_FILE_NAME: make-thing
-     :EXPORT_HUGO_TYPE: qtprocedure
-     :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :description "Racket procedure for making a new qtMUD thing."
-     :END:
- The =make-thing= procedure is simply an interface for the =thing= struct, coming with some defaults for filling out the mud (=#f=), grammar, and qualities (empty hash-tables).
- #+name: make-thing-procedure
- #+caption: qtMUD's =make-thing= procedure: creates a new {{{struct(thing)}}}.
+*** Creating things
+The =create-thing= procedure is simply an interface for the =thing= struct, coming with some defaults for filling out the mud (=#f=), grammar, and qualities (empty hash-tables).
+ #+name: create-thing-procedure
+ #+caption: qtMUD's =create-thing= procedure: creates a new thing.
  #+begin_src racket :noweb no-export
-   (define (make-thing [name "thing"] [chosen-universe #f] #:grammar [grammar #f] #:qualities [qualities #f])
-     (log-info "Making a new thing named ~a~a"
-		name
-		(cond [chosen-universe (format " for ~a." (universe-name chosen-universe))]
-		      [else "."]))
-     (let ([made-thing
-	    (thing
-	     name
-	     chosen-universe
-	     (cond [grammar (make-hash grammar)][else (make-hash)])
-	     (cond [qualities (make-hash qualities)][else (make-hash)]))])
+   (define (create-thing [name "thing"] [chosen-universe #f]
+		       #:grammar [grammar #f] #:qualities [qualities #f]
+		       #:procedures [procedures #f])
+     (log-info "Creating a new thing named ~a~a"
+	       name
+	       (cond [chosen-universe
+		      (format "for ~a."
+			      (universe-name chosen-universe))]
+		     [else "."]))
+     (let ([created-thing (thing name chosen-universe
+				 (cond [grammar (make-hash grammar)]
+				       [else (make-hash)])
+				 (cond [qualities (make-hash qualities)]
+				       [else (make-hash)])
+				 (cond [procedures (make-hash procedures)]
+				       [else (make-hash)]))])
        (when chosen-universe
-	 (add-thing-to-universe-things! made-thing chosen-universe))
-       made-thing))
- #+end_src
-**** make-thing-maker-for-universe
- #+name: make-thing-maker-for-universe-procedure
- #+begin_src racket :noweb yes
-   (define (make-thing-maker-for-universe making-universe)
-   (λ (name #:grammar [grammar #f] #:qualities [qualities #f])
-     (cond [(and grammar qualities)
-            (make-thing name making-universe #:grammar grammar #:qualities qualities)]
-	   [grammar
-            (make-thing name making-universe #:grammar grammar)]
-           [qualities
-            (make-thing name making-universe #:qualities qualities)]
-           [else
-            (make-thing name making-universe)])))
+	 (add-thing-to-universe-things! created-thing chosen-universe))
+       created-thing))
  #+end_src
 *** Working with a Thing
+**** Universe
+#+name: thing-has-universe?-procedure
+#+begin_src racket
+  (define (thing-has-universe? queried-thing)
+    (cond [(thing-universe queried-thing) #t][else #f]))
+#+end_src
 **** Qualities
 ***** thing-has-quality?
       :PROPERTIES:
@@ -109,14 +99,36 @@ The things that exist within the MUD: player-characters, items, game areas, are 
       :EXPORT_HUGO_TYPE: racket-procedure
       :END:
   #+name: thing-has-quality?-procedure
-  #+caption: qtMUD's =thing-quality= procedure: reads a {{{struct(thing)}}}'s quality.
   #+begin_src racket :noweb no-export
-    (define (thing-has-quality? queried-thing quality)
-      (log-debug "Checking if ~a has ~a quality." (thing-name queried-thing) quality)
-      (let ([qualities (thing-qualities queried-thing)])
-	(cond [(hash-has-key? qualities quality)
-	       (hash-ref qualities quality)]
-	      [else #f])))
+    (define (thing-has-quality? queried-thing queried-quality)
+      (let ([queried-thing-name (thing-name queried-thing)]
+	    [queried-thing-universe
+	     (cond [(thing-has-universe? queried-thing)
+		    (thing-universe queried-thing)]
+		   [else #f])])
+	(log-debug "Checking if ~a has ~a quality."
+		 queried-thing-name queried-quality)
+	(let ([thing-has-quality?-procedure-key
+	       (join-list-of-strings-and-symbols-as-symbol
+		(list "thing-has-" queried-quality "?"))])
+	(cond [(thing-has-procedure? thing-has-quality?-procedure-key)
+	       (log-debug "~a has a procedure for checking itself for ~a quality; using it."
+			  queried-thing-name queried-quality)
+	       ((thing-procedure queried-thing thing-has-quality?-procedure-key))]
+	      [(and queried-thing-universe
+		    (universe-has-procedure? queried-thing-universe
+					     thing-has-quality?-procedure-key))
+	       (log-debug "~a's universe, ~a, has a procedure for checking if ~a has ~a quality; using it."
+			  queried-thing-name (universe-name queried-thing-universe)
+			  queried-quality)
+	       ((universe-procedure queried-thing-universe
+				    thing-has-quality?-procedure-key)
+		queried-thing)]
+	      [else
+	       (let ([queried-thing-qualities (thing-qualities queried-thing)])
+		 (cond [(hash-has-key? queried-thing-qualities queried-quality)
+			#t]
+		       [else #f]))]))))
   #+end_src
 ***** thing-quality
       :PROPERTIES:
@@ -125,17 +137,37 @@ The things that exist within the MUD: player-characters, items, game areas, are 
       :EXPORT_HUGO_TYPE: racket-procedure
       :END:
   #+name: thing-quality-procedure
-  #+caption: qtMUD's =thing-quality= procedure: reads a {{{struct(thing)}}}'s quality.
   #+begin_src racket :noweb no-export
-    (define (thing-quality queried-thing quality)
-      (cond [(thing-has-quality? queried-thing quality)
-             (log-debug "Reading ~a quality from ~a" quality (thing-name queried-thing))
-	     (hash-ref (thing-qualities queried-thing) quality)]
-	    [else
-	     (log-warning "Tried to read non-existent ~a quality from ~a."
-			  quality
-			  (thing-name queried-thing))]))
-
+    (define (thing-quality queried-thing queried-quality)
+      (define queried-thing-name (thing-name queried-thing))
+      (define queried-thing-universe
+	(cond [(thing-has-universe? queried-thing)
+	       (thing-universe queried-thing)]
+	      [else #f]))
+      (log-debug "Checking the value of ~a's ~a quality."
+		 queried-thing-name queried-quality)
+      (let ([thing-quality-procedure-key
+	     (join-list-of-strings-and-symbols-as-symbol
+	      (list "thing-" queried-quality))])
+	(cond [(thing-has-procedure? thing-quality-procedure-key)
+	       (log-debug "~a has a procedure for checking the value of its own ~a quality: using it."
+			  queried-thing-name queried-quality)
+	       ((thing-procedure queried-thing thing-quality-procedure-key)
+		queried-thing)]
+	      [(and queried-thing-universe
+		    (universe-has-procedure? queried-thing-universe
+					     thing-quality-procedure-key))
+	       (log-debug "~a's universe, ~a, has a procedure for checking the value of ~a's ~a quality: using it."
+			  queried-thing-name
+			  (universe-name queried-thing-universe)
+			  queried-quality)
+	       ((universe-procedure queried-thing-universe thing-quality-procedure-key)
+		queried-thing-name)]
+	      [else
+	       (cond [(thing-has-quality? queried-thing queried-quality)
+		      (hash-ref (thing-qualities queried-thing) queried-quality)]
+		     [else (error "~a doesn't have the ~a quality."
+				  queried-thing-name queried-quality)])])))
   #+end_src
 ***** set-thing-quality!
       :PROPERTIES:
@@ -145,12 +177,83 @@ The things that exist within the MUD: player-characters, items, game areas, are 
       :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :description "Racket procedure to set a qtMUD thing's quality to a new value."
       :END:
    #+name: set-thing-quality!-procedure
-   #+caption: Racket procedure to set a qtMUD thing's quality to a new value.
    #+begin_src racket :noweb no-export
      (define (set-thing-quality! changed-thing changed-quality new-value)
-       (log-debug "Setting ~a's ~a quality to ~a." (thing-name changed-thing) changed-quality new-value)
-       (hash-set! (thing-qualities changed-thing) changed-quality new-value))
+       (let ([changed-thing-name (thing-name changed-thing)]
+	     [changed-thing-universe
+	      (cond [(thing-has-universe? changed-thing)
+		     (thing-universe changed-thing)]
+		    [else #f])]
+	     [set-thing-quality!-procedure-key
+	      (join-list-of-strings-and-symbols-as-symbol
+	       (list "set-thing-" changed-quality "!"))])
+	 (log-debug "Setting ~a's ~a quality to ~a."
+		    changed-thing-name changed-quality new-value)
+	 (cond [(thing-has-procedure? set-thing-quality!-procedure-key)
+		(log-debug "~a has a procedure for setting its own ~a quality: using it."
+			   changed-thing-name changed-quality)
+		((thing-procedure changed-thing set-thing-quality!-procedure-key)
+		 new-value)]
+	       [(and changed-thing-universe
+		     (universe-has-procedure? changed-thing-universe
+					      set-thing-quality!-procedure-key))
+		(log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
+			   changed-thing-name
+			   (universe-name changed-thing-universe)
+			   changed-quality)
+		((universe-procedure changed-thing-universe
+				     set-thing-quality!-procedure-key)
+		 changed-thing new-value)]
+	       [else
+		(let ([changed-thing-qualities (thing-qualities changed-thing)])
+		  (cond [(hash-has-key? changed-thing-qualities changed-quality)
+			 (hash-set! changed-thing-qualities changed-quality new-value)]
+			[else (error "~a doesn' thave the ~a quality."
+				     changed-thing-name)]))])))
    #+end_src
+***** add-string-to-thing-quality!
+   #+name: add-string-to-thing-quality!-procedure
+   #+begin_src racket :noweb no-export
+     (define (add-string-to-thing-quality! input-string changed-thing changed-quality)
+       (let ([changed-thing-name (thing-name changed-thing)]
+	     [changed-thing-universe
+	      (cond [(thing-has-universe? changed-thing)
+		     (thing-universe changed-thing)]
+		    [else #f])]
+	     [procedure-key
+	      (join-list-of-strings-and-symbols-as-symbol
+	       (list "add-string-to-thing-" changed-quality "!"))])
+	 (cond [(thing-has-procedure? procedure-key)
+		((thing-procedure changed-thing procedure-key) input-string)]
+	       [(and changed-thing-universe
+		     (universe-has-procedure? changed-thing-universe
+					      procedure-key))
+		((universe-procedure changed-thing-universe procedure-key)
+		 changed-thing input-string)]
+	       [else
+		(set-thing-quality! changed-thing
+				    changed-quality
+				    (string-join
+				     (thing-quality changed-thing changed-quality)
+				     input-string))])))
+   #+end_src
+**** Procedures
+#+name: thing-procedure-procedure
+#+begin_src racket :noweb yes
+  (define (thing-procedure queried-universe queried-procedure)
+    (cond [(universe-has-procedure? queried-universe queried-procedure)
+	   (hash-ref (thing-procedures queried-universe) queried-procedure)]
+	  [else
+	   (log-warning "Tried to use procedure ~a from universe ~a, but it doesn't exist."
+			queried-procedure
+			(universe-name queried-universe))]))
+#+end_src
+#+name: thing-has-procedure?-procedure
+#+begin_src racket
+  (define (thing-has-procedure? queried-thing queried-procedure)
+    (cond [(hash-has-key? (thing-procedures queried-thing) queried-procedure) #t]
+          [else #f]))
+#+end_src
 *** Working with a group of Things
 **** list-thing-names
      :PROPERTIES:
@@ -172,11 +275,7 @@ The things that exist within the MUD: player-characters, items, game areas, are 
 ** Universe
 #+name: universe-struct
 #+begin_src racket
-  (struct universe
-    (name
-     tick-count schedule
-     things procedures)
-    #:mutable)
+  (struct universe (name tick-count schedule things procedures) #:mutable)
 #+end_src
 *** Making a Universe
 #+name: make-universe-procedure
@@ -285,7 +384,19 @@ old:
 	  (loop)))))
  #+end_src
 ** Utilities
-**** oxfordize-list
+*** Join list of strings and symbols as symbol
+#+name: join-list-of-strings-and-symbols-as-symbol-procedure
+#+begin_src racket
+  (define (join-list-of-strings-and-symbols-as-symbol
+	   unjoined-list string-separator)
+    (string-join
+     (map (λ (list-element)
+	    (cond [(string? list-element) list-element]
+		  [(symbol? list-element) (symbol->string list-element)]))
+	  unjoined-list)
+     string-separator))
+#+end_src
+*** Oxfordize list
  #+name: oxfordize-list-procedure
  #+begin_src racket :noweb yes
  (define (oxfordize-list strings)
@@ -301,21 +412,21 @@ old:
                    #:before-first ""
                    #:before-last ", and ")]))
  #+end_src
-**** deserialize-file
-     :PROPERTIES:
-     :EXPORT_FILE_NAME: deserialize-file
-     :END:
- #+name: deserialize-file-procedure
- #+begin_src racket :noweb no-export
-   (define (deserialize-file save-file)
-     (when (file-exists? save-file)
-       (log-debug "Deserializing file ~a" save-file)
-       (with-handlers
-	 ([exn:fail:filesystem:errno?
-	   (λ (E) (log-warning "Failed to deserialize file: ~a" E))])
-	 (with-input-from-file save-file (λ () (deserialize (read)))))))
- #+end_src
-**** make-universe-logger
+*** Deserialize file
+    :PROPERTIES:
+    :EXPORT_FILE_NAME: deserialize-file
+    :END:
+#+name: deserialize-file-procedure
+#+begin_src racket :noweb no-export
+  (define (deserialize-file save-file)
+    (when (file-exists? save-file)
+      (log-debug "Deserializing file ~a" save-file)
+      (with-handlers
+	([exn:fail:filesystem:errno?
+	  (λ (E) (log-warning "Failed to deserialize file: ~a" E))])
+	(with-input-from-file save-file (λ () (deserialize (read)))))))
+#+end_src
+*** Make universe logger
 #+name: make-universe-logger-procedure
 #+begin_src racket
   (define (make-universe-logger logging-universe [loglevel 'info])
@@ -325,7 +436,7 @@ old:
       (make-log-receiver universe-log loglevel))
     (cons universe-log universe-log-receiver))
 #+end_src
-**** run-universe-logger
+*** Run universe logger
 #+name: run-universe-logger-procedure
 #+begin_src racket
   (define (run-universe-logger universe-logger)
@@ -355,274 +466,6 @@ old:
   :EXPORT_FILE_NAME: library
   :END:
 #+toc: headlines 1 local
-** plan Animation
-*** Qualities of Animation
-**** actions
-**** thing-actions
-**** add-actions-to-thing
-**** set-thing-actions!
-**** thing-has-actions?
-**** thing-action
-**** add-action-to-thing
-**** thing-has-action?
-**** metabolism
-**** thing-metabolism
-**** add-metabolism-to-thing!
-**** set-thing-metabolism!
-**** thing-has-metabolism?
-**** make-small-mall-metabolism-for-thing
-*** Basic Actions
-**** movement
-**** looking
-**** make-thing-look-at-thing
-#+name: make-thing-look-at-thing-procedure
-#+begin_src racket
-  (define (make-thing-look-at-thing looking-thing looked-thing)
-  (format "~a" (thing-name looked-thing)))
-#+end_src
-*** MUDSocket Commands
-***** look
-#+name: make-look-mudsocket-command-for-thing-procedure
-#+begin_src racket :noweb yes
-    (define (make-look-mudsocket-command-for-thing commanding-thing)
-      (λ (command-arguments)
-	(cond [(hash-empty? command-arguments)
-	       (cond [(thing-has-parent-container? commanding-thing)
-		      (let ([commanding-thing-parent-container
-			     (thing-parent-container commanding-thing)])
-			(add-string-to-thing-mudsocket-output-buffer!
-			 (format "[    ~a    ]~a~a"
-				 (thing-name commanding-thing-parent-container)
-				 (cond [(thing-has-area-description?
-					 commanding-thing-parent-container)
-					(format "\n  ~a"
-						(thing-area-description
-						 commanding-thing-parent-container))]
-				       [else ""])
-				 (cond [(thing-has-area-exits?
-					 commanding-thing-parent-container)
-					(format "\n  Area exits: ~a"
-						(oxfordize-list
-						 (hash-keys
-						  (thing-area-exits
-						   commanding-thing-parent-container))))]
-				       [else ""]))
-			 commanding-thing))]
-		     [else
-		      (add-string-to-thing-mudsocket-output-buffer!
-		       "You look around, but you aren't anyplace."
-		       commanding-thing)])]
-	      [(hash-has-key? command-arguments "container")
-	       (add-string-to-thing-mudsocket-output-buffer!
-		"Looking inside things doesn't work yet, sorry."
-		commanding-thing)]
-	      [(hash-has-key? command-arguments 'line)
-	       (add-string-to-thing-mudsocket-output-buffer!
-		"Looking at things doesn't work yet, sorry."
-		commanding-thing)])))
-#+end_src
-***** move
-#+name: make-move-mudsocket-command-for-thing-procedure
-#+begin_src racket :noweb yes
-    (define (make-move-mudsocket-command-for-thing commanding-thing)
-      (λ (command-arguments)
-	(let* ([commanding-thing-parent-container (thing-parent-container commanding-thing)]
-	       [commanding-thing-parent-container-area-exits
-		(thing-area-exits commanding-thing-parent-container)])
-	  (cond [(hash-has-key? command-arguments 'line)
-		 (cond [(hash-has-key? commanding-thing-parent-container-area-exits
-				       (hash-ref command-arguments 'line))
-			(add-string-to-thing-mudsocket-output-buffer!
-			 (format "You attempt to move ~a."
-				 (hash-ref command-arguments 'line))
-			 commanding-thing)
-			(add-thing-to-thing-contents!
-			 commanding-thing
-			 (hash-ref commanding-thing-parent-container-area-exits
-				   (hash-ref command-arguments 'line)))]
-		       [else
-			(add-string-to-thing-mudsocket-output-buffer!
-			 "Invalid exit."
-			 commanding-thing)])]
-		[else
-		 (add-string-to-thing-mudsocket-output-buffer!
-		  "You must use this command with an exit, try \"look\"."
-		  commanding-thing)]))))
-#+end_src
-
-** plan Areas
-*** Map
-#+name: make-map-from-areas-procedure
-#+begin_src racket
-(define (make-map-from-areas areas)
- (make-hash areas))
-#+end_src
-*** Description
-**** thing-area-description
-#+name: thing-area-description-procedure
-#+begin_src racket :noweb yes
-  (define (thing-area-description queried-thing)
-    (thing-quality queried-thing 'area-description))
-#+end_src
-**** thing-has-area-description?
-#+name: thing-has-area-description?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-area-description? queried-thing)
-    (thing-has-quality? queried-thing 'area-description))
-#+end_src
-**** set-thing-area-description!
-#+name: set-thing-area-description!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-area-description! changed-thing new-area-description)
-    (log-info "Setting ~a Area-Description to ~a"
-	      (thing-name changed-thing)
-	      new-area-description)
-    (cond [(thing-has-area-description? changed-thing)
-	   (set-thing-quality! changed-thing 'area-description new-area-description)]
-	  [else
-	   (add-area-description-to-thing! changed-thing new-area-description)]))
-#+end_src
-**** add-area-description-to-thing!
-#+name: add-area-description-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-area-description-to-thing! changed-thing new-area-description)
-    (unless (thing-has-area-description? changed-thing)
-      (log-debug "Adding Area-Description quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'area-description (void))
-      (set-thing-area-description! changed-thing new-area-description)))
-#+end_src
-*** Exits
-**** thing-area-exits
-#+name: thing-area-exits-procedure
-#+begin_src racket :noweb yes
-  (define (thing-area-exits queried-thing)
-    (thing-quality queried-thing 'area-exits))
-#+end_src
-**** thing-has-area-exits?
-#+name: thing-has-area-exits?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-area-exits? queried-thing)
-    (thing-has-quality? queried-thing 'area-exits))
-#+end_src
-**** set-thing-area-exits!
-#+name: set-thing-area-exits!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-area-exits! changed-thing new-area-exits)
-    (log-info "Setting ~a Area-Exits to ~a"
-	      (thing-name changed-thing)
-	      new-area-exits)
-    (cond [(thing-has-area-exits? changed-thing)
-	   (set-thing-quality! changed-thing 'area-exits (make-hash new-area-exits))]
-	  [else
-	   (add-area-exits-to-thing! changed-thing new-area-exits)]))
-#+end_src
-**** add-area-exits-to-thing!
-#+name: add-area-exits-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-area-exits-to-thing! changed-thing new-area-exits)
-    (unless (thing-has-area-exits? changed-thing)
-      (log-debug "Adding Area-Exits quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'area-exits (void))
-      (set-thing-area-exits! changed-thing new-area-exits)))
-#+end_src
-*** Populations
-*** Facilities
-*** Other Stuff?
-** Containers
-**** thing-contents
-#+name: thing-contents-procedure
-#+begin_src racket :noweb yes
-  (define (thing-contents queried-thing)
-    (thing-quality queried-thing 'contents))
-#+end_src
-**** thing-has-contents?
-#+name: thing-has-contents?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-contents? queried-thing)
-    (thing-has-quality? queried-thing 'contents))
-#+end_src
-**** set-thing-contents!
-#+name: set-thing-contents!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-contents! changed-thing new-contents)
-    (log-info "Setting ~a Contents to ~a"
-	      (thing-name changed-thing)
-	      new-contents)
-    (cond [(thing-has-contents? changed-thing)
-	   (set-thing-quality! changed-thing 'contents new-contents)]
-	  [else
-	   (add-contents-to-thing! changed-thing new-contents)]))
-#+end_src
-**** add-contents-to-thing!
-#+name: add-contents-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-contents-to-thing! changed-thing [new-contents (list)])
-    (unless (thing-has-contents? changed-thing)
-      (log-debug "Adding Contents quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'contents (list))
-      (set-thing-contents! changed-thing new-contents)))
-#+end_src
-**** add-thing-to-thing-contents!
-#+name: add-thing-to-thing-contents!-procedure
-#+begin_src racket
-  (define (add-thing-to-thing-contents! added-thing container-thing)
-    (when (thing-has-parent-container? added-thing)
-      (let ([added-thing-parent-container (thing-parent-container added-thing)])
-	(when (thing? added-thing-parent-container)
-	  (remove-thing-from-thing-contents! added-thing added-thing-parent-container))))
-    (set-thing-parent-container! added-thing container-thing)
-    (cond [(thing-has-contents? container-thing)
-           (set-thing-contents! container-thing
-                                (append (thing-contents container-thing)
-                                        (list added-thing)))]
-          [else
-           (add-contents-to-thing! container-thing (list added-thing))]))
-#+end_src
-**** remove-thing-from-thing-contents!
-#+name: remove-thing-from-thing-contents!-procedure
-#+begin_src racket
-  (define (remove-thing-from-thing-contents! removed-thing container-thing)
-    (when
-	(and (thing-has-parent-container? removed-thing)
-	     (eq? (thing-parent-container removed-thing) container-thing))
-      (set-thing-parent-container! removed-thing (void)))
-    (set-thing-contents!
-     container-thing
-     (remove removed-thing (thing-contents container-thing))))
-#+end_src
-**** thing-parent-container
-#+name: thing-parent-container-procedure
-#+begin_src racket :noweb yes
-  (define (thing-parent-container queried-thing)
-    (thing-quality queried-thing 'parent-container))
-#+end_src
-**** thing-has-parent-container?
-#+name: thing-has-parent-container?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-parent-container? queried-thing)
-    (thing-has-quality? queried-thing 'parent-container))
-#+end_src
-**** set-thing-parent-container!
-#+name: set-thing-parent-container!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-parent-container! changed-thing new-parent-container)
-    (log-info "Setting ~a Container to ~a"
-	      (thing-name changed-thing)
-	      new-parent-container)
-    (cond [(thing-has-parent-container? changed-thing)
-	   (set-thing-quality! changed-thing 'parent-container new-parent-container)]
-	  [else
-	   (add-parent-container-to-thing! changed-thing new-parent-container)]))
-#+end_src
-**** add-parent-container-to-thing!
-#+name: add-parent-container-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-parent-container-to-thing! changed-thing [new-parent-container (void)])
-    (unless (thing-has-parent-container? changed-thing)
-      (log-debug "Adding Container quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'parent-container (void))
-      (set-thing-parent-container! changed-thing new-parent-container)))
-#+end_src
 ** document MUDSocket
    :PROPERTIES:
    :EXPORT_FILE_NAME: mudsocket
@@ -630,1024 +473,122 @@ old:
 *** make-mudsocket-tick-event-for-universe
 #+name: make-mudsocket-tick-event-for-universe
 #+begin_src racket :noweb yes
-    (define (make-mudsocket-tick-event-for-universe this-universe [port 4242])
-      (log-debug "Making a MUDSocket tick event.")
-      (define mudsocket-listener (tcp-listen port 5 #t))
-      (define current-connections '())
-      (define (tick-mudsocket-event ticked-universe)
-	(define (accept-new-connection)
-	  (define-values (mudsocket-in mudsocket-out)
-	    (tcp-accept mudsocket-listener))
-	  (define-values (local-ip local-port remote-ip remote-port)
-	    (tcp-addresses mudsocket-in #t))
-	  (log-info "MUDSocket accepted a new connection from ~a:~a"
-		    remote-ip remote-port)
-	  (define connected-thing
-	    (make-thing "MUDSocket client" ticked-universe))
-	  (add-mudsocket-in-to-thing! connected-thing mudsocket-in)
-	  (add-mudsocket-out-to-thing! connected-thing mudsocket-out)
-	  (add-mudsocket-ip-to-thing! connected-thing remote-ip)
-	  (add-mudsocket-port-to-thing! connected-thing remote-port)
-	  (add-mudsocket-output-buffer-to-thing! connected-thing)
-	  (add-mudsocket-sender-to-thing! connected-thing)
-	  (add-mudsocket-parser-to-thing! connected-thing
-	    (make-mudsocket-login-parser-for-thing connected-thing))
-	  (add-talker-channels-to-thing! connected-thing)
-	  (add-mudsocket-commands-to-thing! connected-thing)
-	  (set! current-connections (append (list connected-thing) current-connections))
-	  (add-thing-to-universe-things! connected-thing this-universe)
-	  (cond [(universe-has-procedure? this-universe 'handle-mudsocket-connection)
-		 ((universe-procedure this-universe 'handle-mudsocket-connection)
-		  connected-thing)]
-		[else
-		 (add-string-to-thing-mudsocket-output-buffer!
-		  (format "Your connection to ~a has been accepted."
-			  (universe-name ticked-universe))
-		  connected-thing)]))
-	(map
-	 (λ (connected-thing)
-	   (let ([connected-thing-name (thing-name connected-thing)]
-		 [connected-thing-mudsocket-in (thing-mudsocket-in connected-thing)]
-		 [connected-thing-mudsocket-out (thing-mudsocket-out connected-thing)]
-		 [connected-thing-mudsocket-ip (thing-mudsocket-ip connected-thing)]
-		 [connected-thing-mudsocket-port (thing-mudsocket-port connected-thing)]
-		 [connected-thing-mudsocket-output-buffer (thing-mudsocket-output-buffer connected-thing)]
-		 [connected-thing-mudsocket-parser (thing-mudsocket-parser connected-thing)]
-		 [connected-thing-mudsocket-sender (thing-mudsocket-sender connected-thing)])
-	     (define (disconnect)
-	       (close-input-port connected-thing-mudsocket-in)
-	       (close-output-port connected-thing-mudsocket-out)
-	       (set! current-connections (remove connected-thing current-connections))
-	       (log-info "MUDSocket disconnected connection from ~a:~a"
-			 connected-thing-mudsocket-ip
-			 connected-thing-mudsocket-port))
-	     ; todo: add ^-- (destroy-thing connected-thing) above
-	     (cond
-	       [(port-closed? connected-thing-mudsocket-in)
-		(disconnect)]
-	       [(byte-ready? connected-thing-mudsocket-in)
-		(with-handlers
-		    ([exn:fail:read?
-		      (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
-					  connected-thing-name
-					  e))]
-		   [exn:fail:network:errno?
+  (define (make-mudsocket-commands-for-thing target-thing)
+    (make-hash))
+
+  (define (make-mudsocket-parser-for-thing target-thing)
+   (λ (input-line) (void)))
+
+  (define (make-mudsocket-sender-for-thing target-thing)
+   (λ () (void)))
+
+  (define (change-thing-into-mudsocket-client! changed-thing
+					    in out ip port)
+    (map (λ (quality-pair)
+	   (set-thing-quality! changed-thing
+			       (car quality-pair) (cdr quality-pair)
+			       #t))
+	 `((mudsocket-in . ,in)
+	   (mudsocket-out . ,out)
+	   (mudsocket-ip . ,ip)
+	   (mudsocket-port . ,port)
+	   (mudsocket-commands . ,(make-mudsocket-commands-for-thing
+				   changed-thing))
+	   (mudsocket-output-buffer . "")
+	   (mudsocket-parser . ,(make-mudsocket-parser-for-thing
+				 changed-thing))
+	   (mudsocket-sender . ,(make-mudsocket-sender-for-thing
+				 changed-thing))
+	   (talker-channels . ("cq")))))
+
+  (define (make-mudsocket-tick-event-for-universe target-universe [port 4242])
+    (log-debug "Making a MUDSocket tick event for ~a." (universe-name target-universe))
+    (define mudsocket-listener (tcp-listen port 5 #t))
+    (define current-connections '())
+    (define (tick-mudsocket-event ticked-universe)
+      (define (accept-new-connection)
+	(define-values (mudsocket-in mudsocket-out)
+	  (tcp-accept mudsocket-listener))
+	(define-values (local-ip local-port remote-ip remote-port)
+	  (tcp-addresses mudsocket-in #t))
+	(log-info "MUDSocket accepted a new connection from ~a:~a"
+		  remote-ip remote-port)
+	(define connected-thing (create-thing "MUDSocket client" ticked-universe))
+	(change-thing-into-mudsocket-client! connected-thing
+					   mudsocket-in mudsocket-out
+					   remote-ip remote-port)
+	(set! current-connections (append (list connected-thing) current-connections))
+	(add-thing-to-universe-things! connected-thing ticked-universe)
+	(when (universe-has-procedure? ticked-universe 'handle-mudsocket-connection)
+	  ((universe-procedure ticked-universe 'handle-mudsocket-connection)
+	   connected-thing))
+	(add-string-to-thing-quality!
+	 (cond [(universe-has-procedure? ticked-universe
+					 'make-mudsocket-connection-message)
+		((universe-procedure ticked-universe
+				     'make-mudsocket-connection-message)
+		 connected-thing)]
+	       [else
+		(format "Your connection to ~a has been accepted."
+			(universe-name ticked-universe))])
+	 connected-thing 'mudsocket-output-buffer))
+      (map
+       (λ (connected-thing)
+	 (let ([connected-thing-name
+		(thing-name connected-thing)]
+	       [connected-thing-mudsocket-in
+		(thing-quality connected-thing 'mudsocket-in)]
+	       [connected-thing-mudsocket-out
+		(thing-quality connected-thing 'mudsocket-out)]
+	       [connected-thing-mudsocket-ip
+		(thing-quality connected-thing 'mudsocket-thing)]
+	       [connected-thing-mudsocket-port
+		(thing-quality connected-thing 'mudsocket-port)]
+	       [connected-thing-mudsocket-output-buffer
+		(thing-quality connected-thing 'mudsocket-output-buffer)]
+	       [connected-thing-mudsocket-parser
+		(thing-quality connected-thing 'mudsocket-parser)]
+	       [connected-thing-mudsocket-sender
+		(thing-quality connected-thing 'mudsocket-sender)])
+	   (define (disconnect)
+	     (close-input-port connected-thing-mudsocket-in)
+	     (close-output-port connected-thing-mudsocket-out)
+	     (set! current-connections (remove connected-thing current-connections))
+	     (log-info "MUDSocket disconnected connection from ~a:~a"
+		       connected-thing-mudsocket-ip
+		       connected-thing-mudsocket-port))
+	   ; todo: add ^-- (destroy-thing connected-thing) above
+	   (cond
+	     [(port-closed? connected-thing-mudsocket-in)
+	      (disconnect)]
+	     [(byte-ready? connected-thing-mudsocket-in)
+	      (with-handlers
+		  ([exn:fail:read?
 		    (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
 					connected-thing-name
-					e))])
-		  (let ([connected-thing-line-in (read-line connected-thing-mudsocket-in)])
-		    (cond [(string? connected-thing-line-in)
-			   (connected-thing-mudsocket-parser (string-trim connected-thing-line-in))]
-			  [(eof-object? connected-thing-line-in)
-			   (disconnect)])))])
-		  (when (> (string-length connected-thing-mudsocket-output-buffer) 0)
-		    (connected-thing-mudsocket-sender))))
-	 current-connections)
-	(when (tcp-accept-ready? mudsocket-listener)
-	  (accept-new-connection))
-	(add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
-      (set-universe-procedure! this-universe 'list-mudsocket-current-connections
-			       (λ () current-connections))
-      (set-universe-procedure! this-universe
-			       'add-string-to-thing-mudsocket-output-buffer!
-			       (λ (added-string
-				   changed-thing)
-				 (add-string-to-thing-mudsocket-output-buffer!
-				  added-string changed-thing)))
-      tick-mudsocket-event)
+					e))]
+		 [exn:fail:network:errno?
+		  (λ (e) (log-warning "MUDSocket encountered issue with ~a: ~a"
+				      connected-thing-name
+				      e))])
+		(let ([connected-thing-line-in
+		       (read-line connected-thing-mudsocket-in)])
+		  (cond [(string? connected-thing-line-in)
+			 (connected-thing-mudsocket-parser
+			  (string-trim connected-thing-line-in))]
+			[(eof-object? connected-thing-line-in)
+			 (disconnect)])))])
+		(when (> (string-length connected-thing-mudsocket-output-buffer) 0)
+		  (connected-thing-mudsocket-sender))))
+       current-connections)
+      (when (tcp-accept-ready? mudsocket-listener)
+	(accept-new-connection))
+      (add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
+    (set-universe-procedure! target-universe 'list-mudsocket-current-connections
+			     (λ () current-connections))
+    tick-mudsocket-event)
 
 
-#+end_src
-*** mudsocket-in
-**** thing-mudsocket-in
-#+name: thing-mudsocket-in-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-in queried-thing)
-    (thing-quality queried-thing 'mudsocket-in))
-#+end_src
-**** thing-has-mudsocket-in?
-#+name: thing-has-mudsocket-in?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-in? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-in))
-#+end_src
-**** set-thing-mudsocket-in!
-#+name: set-thing-mudsocket-in!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-in! changed-thing new-mudsocket-in)
-    (log-info "Setting ~a MUDSocket-In to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-in)
-    (cond [(thing-has-mudsocket-in? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-in new-mudsocket-in)]
-	  [else
-	   (add-mudsocket-in-to-thing! changed-thing new-mudsocket-in)]))
-#+end_src
-**** add-mudsocket-in-to-thing!
-#+name: add-mudsocket-in-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-in-to-thing! changed-thing new-mudsocket-in)
-    (unless (thing-has-mudsocket-in? changed-thing)
-      (log-debug "Adding MUDSocket-In quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-in (void))
-      (set-thing-mudsocket-in! changed-thing new-mudsocket-in)))
-#+end_src
-*** mudsocket-input-buffer
-**** thing-mudsocket-input-buffer
-#+name: thing-mudsocket-input-buffer-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-input-buffer queried-thing)
-    (thing-quality queried-thing 'mudsocket-input-buffer))
-#+end_src
-**** thing-has-mudsocket-input-buffer?
-#+name: thing-has-mudsocket-input-buffer?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-input-buffer? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-input-buffer))
-#+end_src
-**** set-thing-mudsocket-input-buffer!
-#+name: set-thing-mudsocket-input-buffer!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-input-buffer! changed-thing new-mudsocket-input-buffer)
-    (log-info "Setting ~a MUDSocket-input-buffer to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-input-buffer)
-    (cond [(thing-has-mudsocket-input-buffer? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-input-buffer new-mudsocket-input-buffer)]
-	  [else
-	   (add-mudsocket-input-buffer-to-thing! changed-thing new-mudsocket-input-buffer)]))
-#+end_src
-**** add-mudsocket-input-buffer-to-thing!
-#+name: add-mudsocket-input-buffer-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-input-buffer-to-thing! changed-thing [new-mudsocket-input-buffer ""])
-    (unless (thing-has-mudsocket-input-buffer? changed-thing)
-      (log-debug "Adding MUDSocket-input-buffer quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-input-buffer (void))
-      (set-thing-mudsocket-input-buffer! changed-thing new-mudsocket-input-buffer)))
-#+end_src
-*** mudsocket-ip
-**** thing-mudsocket-ip
-#+name: thing-mudsocket-ip-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-ip queried-thing)
-    (thing-quality queried-thing 'mudsocket-ip))
-#+end_src
-**** thing-has-mudsocket-ip?
-#+name: thing-has-mudsocket-ip?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-ip? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-ip))
-#+end_src
-**** set-thing-mudsocket-ip!
-#+name: set-thing-mudsocket-ip!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-ip! changed-thing new-mudsocket-ip)
-    (log-info "Setting ~a Mudsocket-Ip to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-ip)
-    (cond [(thing-has-mudsocket-ip? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-ip new-mudsocket-ip)]
-	  [else
-	   (add-mudsocket-ip-to-thing! changed-thing new-mudsocket-ip)]))
-#+end_src
-**** add-mudsocket-ip-to-thing!
-#+name: add-mudsocket-ip-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-ip-to-thing! changed-thing new-mudsocket-ip)
-    (unless (thing-has-mudsocket-ip? changed-thing)
-      (log-debug "Adding Mudsocket-Ip quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-ip (void))
-      (set-thing-mudsocket-ip! changed-thing new-mudsocket-ip)))
-#+end_src
-
-*** mudsocket-out
-**** thing-mudsocket-out
-#+name: thing-mudsocket-out-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-out queried-thing)
-    (thing-quality queried-thing 'mudsocket-out))
-#+end_src
-**** thing-has-mudsocket-out?
-#+name: thing-has-mudsocket-out?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-out? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-out))
-#+end_src
-**** set-thing-mudsocket-out!
-#+name: set-thing-mudsocket-out!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-out! changed-thing new-mudsocket-out)
-    (log-info "Setting ~a Mudsocket-Out to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-out)
-    (cond [(thing-has-mudsocket-out? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-out new-mudsocket-out)]
-	  [else
-	   (add-mudsocket-out-to-thing! changed-thing new-mudsocket-out)]))
-#+end_src
-**** add-mudsocket-out-to-thing!
-#+name: add-mudsocket-out-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-out-to-thing! changed-thing new-mudsocket-out)
-    (unless (thing-has-mudsocket-out? changed-thing)
-      (log-debug "Adding Mudsocket-Out quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-out (void))
-      (set-thing-mudsocket-out! changed-thing new-mudsocket-out)))
-#+end_src
-
-*** mudsocket-output-buffer
-**** thing-mudsocket-output-buffer
-#+name: thing-mudsocket-output-buffer-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-output-buffer queried-thing)
-    (thing-quality queried-thing 'mudsocket-output-buffer))
-#+end_src
-**** thing-has-mudsocket-output-buffer?
-#+name: thing-has-mudsocket-output-buffer?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-output-buffer? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-output-buffer))
-#+end_src
-**** set-thing-mudsocket-output-buffer!
-#+name: set-thing-mudsocket-output-buffer!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-output-buffer! changed-thing new-mudsocket-output-buffer)
-    (log-info "Setting ~a Mudsocket-Output-Buffer to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-output-buffer)
-    (cond [(thing-has-mudsocket-output-buffer? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-output-buffer new-mudsocket-output-buffer)]
-	  [else
-	   (add-mudsocket-output-buffer-to-thing! changed-thing new-mudsocket-output-buffer)]))
-#+end_src
-**** add-mudsocket-output-buffer-to-thing!
-#+name: add-mudsocket-output-buffer-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-output-buffer-to-thing! changed-thing [new-mudsocket-output-buffer ""])
-    (unless (thing-has-mudsocket-output-buffer? changed-thing)
-      (log-debug "Adding Mudsocket-Output-Buffer quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-output-buffer (void))
-      (set-thing-mudsocket-output-buffer! changed-thing new-mudsocket-output-buffer)))
-#+end_src
-**** clear-thing-mudsocket-output-buffer!
-#+name: clear-thing-mudsocket-output-buffer!-procedure
-#+begin_src racket :noweb yes
-  (define (clear-thing-mudsocket-output-buffer! changed-thing)
-    (log-debug "Clearing the MUDSocket-OutputBuffer of ~a"
-	       (thing-name changed-thing))
-    (set-thing-mudsocket-output-buffer! changed-thing ""))
-#+end_src
-**** add-string-to-thing-mudsocket-output-buffer!
-#+name: add-string-to-thing-mudsocket-output-buffer!-procedure
-#+begin_src racket :noweb yes
-(define (add-string-to-thing-mudsocket-output-buffer! new-string changed-thing)
-  (set-thing-mudsocket-output-buffer! changed-thing (string-append (thing-mudsocket-output-buffer changed-thing) new-string)))
-#+end_src
-*** mudsocket-parser
-**** thing-mudsocket-parser
-#+name: thing-mudsocket-parser-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-parser queried-thing)
-    (thing-quality queried-thing 'mudsocket-parser))
-#+end_src
-**** thing-has-mudsocket-parser?
-#+name: thing-has-mudsocket-parser?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-parser? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-parser))
-#+end_src
-**** set-thing-mudsocket-parser!
-#+name: set-thing-mudsocket-parser!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-parser! changed-thing new-mudsocket-parser)
-    (log-info "Setting ~a Mudsocket-Parser to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-parser)
-    (cond [(thing-has-mudsocket-parser? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-parser new-mudsocket-parser)]
-	  [else
-	   (add-mudsocket-parser-to-thing! changed-thing new-mudsocket-parser)]))
-#+end_src
-**** add-mudsocket-parser-to-thing!
-#+name: add-mudsocket-parser-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-parser-to-thing! changed-thing [new-mudsocket-parser #f])
-    (unless (thing-has-mudsocket-parser? changed-thing)
-      (log-debug "Adding Mudsocket-Parser quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-parser (void))
-      (unless new-mudsocket-parser
-        (set! new-mudsocket-parser (make-mudsocket-parser-for-thing changed-thing)))
-      (set-thing-mudsocket-parser! changed-thing new-mudsocket-parser)))
-#+end_src
-
-**** make-mudsocket-parser-for-thing
-#+name: make-mudsocket-parser-for-thing-procedure
-#+begin_src racket :noweb no-export
-    (define (make-mudsocket-parser-for-thing parsing-thing)
-      (define (parse-args args)
-	(let ([results (make-hash)])
-	  (map
-	   (λ (arg)
-	     (cond [(and (> (string-length arg) 2)
-			 (string=? (substring arg 0 2) "--"))
-		    (let* ([split-arg (string-split arg "=")]
-			   [arg-key (substring (car split-arg) 2)]
-			   [arg-value (cdr split-arg)])
-		      (hash-set! results arg-key arg-value))]
-		   [(string=? (substring arg 0 1) "-")
-		    (map
-		     (λ (char)
-		       (hash-set! results char #t)))]
-		   [else (hash-set! results 'line (cond [(hash-has-key? results 'line)
-							 (append (hash-ref results 'line)
-								 (list arg))]
-							[else (list arg)]))]))
-	   args)
-	  (when (hash-has-key? results 'line)
-	    (hash-set! results 'line (string-join (hash-ref results 'line))))
-	  results))
-      (λ (input-line)
-	(let ([response ""]
-	      [commands (thing-mudsocket-commands parsing-thing)])
-	  (log-debug "Parsing a line from ~a:\n  ~a" (thing-name parsing-thing) input-line)
-	  (when (> (string-length input-line) 0)
-	    (let* ([split-input-line (string-split input-line)]
-		   [first-word (car split-input-line)]
-		   [parsed-args (parse-args (cdr split-input-line))])
-	      (cond [(hash-has-key? commands first-word)
-		     ((hash-ref commands first-word) parsed-args)]
-		    [(member first-word (thing-talker-channels parsing-thing))
-		     (when (hash-has-key? parsed-args 'line)
-		       ((universe-procedure (thing-universe parsing-thing)
-					    'broadcast-message-from-thing-to-talker-channel)
-			(hash-ref parsed-args 'line)
-			parsing-thing
-			first-word))]
-		    [else (set! response "Invalid command.")]))
-	    (when (> (string-length response) 0)
-	      (add-string-to-thing-mudsocket-output-buffer! response parsing-thing))))))
-#+end_src
-**** make-mudsocket-login-parser-for-thing
-#+name: make-mudsocket-login-parser-for-thing-procedure
-#+begin_src racket :noweb no-export
-  (define (make-mudsocket-login-parser-for-thing parsing-thing)
-    (define login-stage 0)
-    (λ (input-line)
-      (log-debug "Received the following login line from ~a:\n  ~a"
-		 (thing-name parsing-thing)
-		 input-line)
-      (let ([response ""])
-	(cond [(= login-stage 0)
-	       (set-thing-user-name!
-		parsing-thing input-line)
-	       (set-thing-name!
-		parsing-thing input-line)
-	       (cond [((universe-procedure
-			(thing-universe parsing-thing) 'user-account?)
-		       input-line)
-		      (set! response
-			    (format "An account exists for ~a. If it's yours, enter the password and press ENTER. Otherwise, disconnect [and reconnect]."
-				    input-line))
-		      (set! login-stage 1)]
-		     [else (let ([new-password (substring (uuid-string) 0 8)])
-			     (set-thing-user-password!
-			      parsing-thing new-password)
-			     ((universe-procedure
-				(thing-universe parsing-thing) 'register-user-account!)
-			      parsing-thing)
-			     (set! response (format "There was no account namd ~a, so one was created. Your new password is\n\n~a\n\nPress ENTER when you're ready to log in."
-						    input-line
-						    new-password)))
-			   (set! login-stage 9)])]
-	      [(= login-stage 1)
-	       (cond [((universe-procedure (thing-universe parsing-thing)
-					   'check-user-account-password?)
-		       (thing-name parsing-thing) input-line)
-		      (set! response "Correct. Press ENTER to complete login.")
-		      (set! login-stage 9)]
-		     [else (set! response "Incorrect. Type your [desired] user-name and press ENTER.") (set! login-stage 0)])]
-	      [(= login-stage 9)
-	       (set-thing-mudsocket-parser! parsing-thing (make-mudsocket-parser-for-thing parsing-thing))
-	       (cond
-		   [(universe-has-procedure?
-		     (thing-universe parsing-thing)
-		     'handle-mudsocket-login)
-		    ((universe-procedure
-		      (thing-universe parsing-thing)
-		      'handle-mudsocket-login)
-		     parsing-thing)]
-		   [else
-		    (set! response "You've been logged in. You may chat with the \"cq\" command.")])])
-	(when (> (string-length response) 0)
-	  (set-thing-mudsocket-output-buffer! parsing-thing response)))))
-#+end_src
-*** mudsocket-port
-**** thing-mudsocket-port
-#+name: thing-mudsocket-port-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-port queried-thing)
-    (thing-quality queried-thing 'mudsocket-port))
-#+end_src
-**** thing-has-mudsocket-port?
-#+name: thing-has-mudsocket-port?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-port? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-port))
-#+end_src
-**** set-thing-mudsocket-port!
-#+name: set-thing-mudsocket-port!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-port! changed-thing new-mudsocket-port)
-    (log-info "Setting ~a Mudsocket-Port to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-port)
-    (cond [(thing-has-mudsocket-port? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-port new-mudsocket-port)]
-	  [else
-	   (add-mudsocket-port-to-thing! changed-thing new-mudsocket-port)]))
-#+end_src
-**** add-mudsocket-port-to-thing!
-#+name: add-mudsocket-port-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-mudsocket-port-to-thing! changed-thing new-mudsocket-port)
-    (unless (thing-has-mudsocket-port? changed-thing)
-      (log-debug "Adding Mudsocket-Port quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'mudsocket-port (void))
-      (set-thing-mudsocket-port! changed-thing new-mudsocket-port)))
-#+end_src
-*** mudsocket-sender
-**** thing-mudsocket-sender
-#+name: thing-mudsocket-sender-procedure
-#+begin_src racket :noweb yes
-  (define (thing-mudsocket-sender queried-thing)
-    (thing-quality queried-thing 'mudsocket-sender))
-#+end_src
-**** thing-has-mudsocket-sender?
-#+name: thing-has-mudsocket-sender?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-mudsocket-sender? queried-thing)
-    (thing-has-quality? queried-thing 'mudsocket-sender))
-#+end_src
-**** set-thing-mudsocket-sender!
-#+name: set-thing-mudsocket-sender!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-mudsocket-sender! changed-thing new-mudsocket-sender)
-    (log-info "Setting ~a Mudsocket-Sender to ~a"
-	      (thing-name changed-thing)
-	      new-mudsocket-sender)
-    (cond [(thing-has-mudsocket-sender? changed-thing)
-	   (set-thing-quality! changed-thing 'mudsocket-sender new-mudsocket-sender)]
-	  [else
-	   (add-mudsocket-sender-to-thing! changed-thing new-mudsocket-sender)]))
-#+end_src
-**** add-mudsocket-sender-to-thing!
-#+name: add-mudsocket-sender-to-thing!-procedure
-#+begin_src racket :noweb yes
-    (define (add-mudsocket-sender-to-thing! changed-thing [new-mudsocket-sender #f])
-      (unless (thing-has-mudsocket-sender? changed-thing)
-	(log-debug "Adding Mudsocket-Sender quality to ~a"
-		   (thing-name changed-thing))
-	(set-thing-quality!
-	 changed-thing
-	 'mudsocket-sender (void))
-	(set-thing-mudsocket-sender!
-	 changed-thing
-	 (cond [new-mudsocket-sender new-mudsocket-sender][else (make-mudsocket-sender-for-thing changed-thing)]))))
-
-#+end_src
-**** make-mudsocket-sender-for-thing
-#+name: make-mudsocket-sender-for-thing-procedure
-#+begin_src racket :noweb yes
-  (define (make-mudsocket-sender-for-thing receiving-thing)
-    (λ ()
-      (let ([receiving-thing-name (thing-name receiving-thing)]
-	    [receiving-thing-mudsocket-out (thing-mudsocket-out receiving-thing)]
-	    [text-to-send (thing-mudsocket-output-buffer receiving-thing)])
-	(log-debug "Sending ~a a message:\n  ~a"
-		   receiving-thing-name
-		   text-to-send)
-	(with-handlers
-	    ([exn?
-	      (λ (e)
-		(log-warning "Issue sending message to ~a: ~a"
-			     receiving-thing-name
-			     e))])
-	  (display
-	   (format
-	    (cond
-	      [(eq? #\newline
-		    (last (string->list text-to-send)))
-	       "~a"]
-	      [else "~a\n"])
-	    text-to-send)
-	   receiving-thing-mudsocket-out)
-	  (flush-output receiving-thing-mudsocket-out)
-	  (clear-thing-mudsocket-output-buffer! receiving-thing)))))
-#+end_src
-*** MUDSocket Commands
-**** Working with the MUDSocket commands quality
-***** thing-mudsocket-commands
- #+name: thing-mudsocket-commands-procedure
- #+begin_src racket :noweb yes
-   (define (thing-mudsocket-commands queried-thing)
-     (thing-quality queried-thing 'mudsocket-commands))
- #+end_src
-***** thing-has-mudsocket-commands?
- #+name: thing-has-mudsocket-commands?-procedure
- #+begin_src racket :noweb yes
-   (define (thing-has-mudsocket-commands? queried-thing)
-     (thing-has-quality? queried-thing 'mudsocket-commands))
- #+end_src
-***** set-thing-mudsocket-commands!
- #+name: set-thing-mudsocket-commands!-procedure
- #+begin_src racket :noweb yes
-   (define (set-thing-mudsocket-commands! changed-thing new-mudsocket-commands)
-     (log-info "Setting ~a Mudsocket-Commands to ~a"
-	       (thing-name changed-thing)
-	       new-mudsocket-commands)
-     (cond [(thing-has-mudsocket-commands? changed-thing)
-	    (set-thing-quality! changed-thing 'mudsocket-commands new-mudsocket-commands)]
-	   [else
-	    (add-mudsocket-commands-to-thing! changed-thing new-mudsocket-commands)]))
- #+end_src
-***** add-mudsocket-commands-to-thing!
- #+name: add-mudsocket-commands-to-thing!-procedure
- #+begin_src racket :noweb yes
-   (define (add-mudsocket-commands-to-thing! changed-thing [new-mudsocket-commands #f])
-     (unless
-	 (thing-has-mudsocket-commands?
-	  changed-thing)
-       (log-debug "Adding MUDSocket-commands quality to ~a"
-		  (thing-name
-		   changed-thing))
-       (set-thing-quality!
-	changed-thing
-	'mudsocket-commands
-	(void))
-       (set-thing-mudsocket-commands!
-	changed-thing
-	(cond [new-mudsocket-commands
-	       new-mudsocket-commands]
-	      [else
-	       (make-hash
-		(list
-		 (cons "commands" (make-commands-mudsocket-command-for-thing changed-thing))
-		 (cons "help" (make-help-mudsocket-command-for-thing changed-thing))
-                 (cons "who" (make-who-mudsocket-command-for-thing changed-thing))))]))))
- #+end_src
-***** add-new-mudsocket-commands-to-thing!
- #+name: add-new-mudsocket-commands-to-thing!-procedure
- #+begin_src racket :noweb yes
-   (define (add-new-mudsocket-commands-to-thing! new-mudsocket-commands changed-thing)
-     (unless (thing-has-mudsocket-commands? changed-thing)
-       (add-mudsocket-commands-to-thing! changed-thing new-mudsocket-commands))
-     (map
-      (λ (new-mudsocket-command)
-	(add-mudsocket-command-to-thing!
-	 (car new-mudsocket-command)
-	    (cdr new-mudsocket-command)
-	    changed-thing))
-      new-mudsocket-commands))
-#+end_src
-#+name: add-mudsocket-command-to-thing!-procedure
-#+begin_src racket
-   (define (add-mudsocket-command-to-thing!
-	    new-mudsocket-command-key
-	    new-mudsocket-command-procedure
-	    changed-thing)
-     (cond [(thing-has-mudsocket-commands? changed-thing)
-	    (hash-set! (thing-mudsocket-commands changed-thing)
-		       new-mudsocket-command-key
-		       new-mudsocket-command-procedure)]
-	   [else
-	    (add-mudsocket-commands-to-thing!
-	     changed-thing
-	     (list (cons new-mudsocket-command-key
-			 new-mudsocket-command-procedure)))]))
-
- #+end_src
-**** Standard MUDSocket Commands
-***** commands
- #+name: make-commands-mudsocket-command-for-thing-procedure
- #+begin_src racket :noweb yes
-   (define (make-commands-mudsocket-command-for-thing
-	    commanding-thing)
-     (λ (args)
-       (add-string-to-thing-mudsocket-output-buffer!
-        (format
-        "You have access to the following commands: ~a"
-	(oxfordize-list (hash-keys (thing-mudsocket-commands commanding-thing))))
-	commanding-thing)))
- #+end_src
-***** help
-#+name: make-help-mudsocket-command-for-thing-procedure
-#+begin_src racket :noweb yes
-  (define (make-help-mudsocket-command-for-thing commanding-thing)
-    (λ (command-arguments)
-      (let ([commanding-thing-universe (thing-universe commanding-thing)])
-	(cond [(universe-has-procedure? commanding-thing-universe
-					'make-mudsocket-help-response)
-	       (universe-procedure commanding-thing-universe
-				   'make-mudsocket-help-response)]
-	      [else
-               (add-string-to-thing-mudsocket-output-buffer!
-	       (format
-
-		"You're connected to a qtMUD server named ~a. Your user-name is ~a.\nTo interact, type commands and press ENTER. A few useful commands:\n- commands returns a list of your available commands\n- help returns some generally helpful information\n- who returns a list of currently-connected users."
-		(universe-name commanding-thing-universe)
-		(thing-name commanding-thing))
-commanding-thing)]))))
-#+end_src
-***** who
-#+name: make-who-mudsocket-command-for-thing-procedure
-#+begin_src racket :noweb yes
-  (define (make-who-mudsocket-command-for-thing commanding-thing)
-    (λ (command-arguments)
-      (let ([commanding-thing-universe (thing-universe commanding-thing)])
-	(cond [(universe-has-procedure? commanding-thing-universe
-					'list-mudsocket-current-connections)
-	       (add-string-to-thing-mudsocket-output-buffer!
-                (format "Users connected now: ~a"
-                 (oxfordize-list (map (λ (connected-thing) (thing-name connected-thing)) ((universe-procedure commanding-thing-universe
-				   'list-mudsocket-current-connections)))))
-                commanding-thing)]
-	      [else
-               (add-string-to-thing-mudsocket-output-buffer!
-	       (format "You're unable to query who is connected to this MUD.")
-               commanding-thing)]))))
-#+end_src
-** plan Politics
-*** parent-poliregion
-*** poliregions
-** draft Talker
-*** Make talker setup event
-#+name: make-talker-setup-event-procedure
-#+begin_src racket
-  (define (add-thing-to-talker-channel listening-thing
-				       active-talker
-				       listened-channel)
-    (hash-set! active-talker listened-channel)
-      (append (hash-ref active-talker listened-channel)
-	      (list listening-thing)))
-  (define (remove-thing-from-talker-channel unlistening-thing
-					    active-talker
-					    unlistened-channel)
-    (let ([active-channel (hash-ref active-talker unlistened-channel)])
-      (hash-set! active-talker unlistened-channel
-		 (remove active-channel unlistening-thing))))
-  (define (broadcast-message-from-thing-to-talker-channel message
-							  chatting-thing
-							  active-talker
-							  target-channel)
-    (let ([broadcast-message (format "(~a) ~a: ~a"
-				     target-channel
-				     (thing-name chatting-thing)
-				     message)])
-      (map
-       (λ (listening-thing)
-	 ((universe-procedure listening-thing
-			      'add-string-to-thing-mudsocket-output-buffer!)
-	  broadcast-message
-	  listening-thing))
-       (hash-ref active-talker target-channel))))
-  (define (make-talker-setup-event [starter-channels '("cq")])
-    (define talker (make-hash
-		    (map (λ (talker-channel)
-			   (cons talker-channel (list)))
-			 starter-channels)))
-    (λ (calling-universe)
-      (set-universe-procedure!
-       calling-universe
-       'talker (λ () talker))
-      (set-universe-procedure!
-       calling-universe
-       'add-thing-to-talker-channel
-       (λ (listening-thing listened-channel)
-	 (add-thing-to-talker-channel listening-thing talker listened-channel)))
-      (set-universe-procedure!
-       calling-universe
-       'remove-thing-from-talker-channel
-       (λ (unlistening-thing unlistened-channel)
-	 (remove-thing-from-talker-channel unlistening-thing
-					   talker
-					   unlistened-channel)))
-      (set-universe-procedure!
-       calling-universe
-       'broadcast-message-from-thing-to-talker-channel
-       (λ (message chatting-thing target-channel)
-	 (broadcast-message-from-thing-to-talker-channel message
-							 chatting-thing
-							 talker
-							 target-channel)))))
-#+end_src
-*** Talker channels quality
-**** thing-talker-channels
-#+name: thing-talker-channels-procedure
-#+begin_src racket :noweb yes
-  (define (thing-talker-channels queried-thing)
-    (thing-quality queried-thing 'talker-channels))
-#+end_src
-**** thing-has-talker-channels?
-#+name: thing-has-talker-channels?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-talker-channels? queried-thing)
-    (thing-has-quality? queried-thing 'talker-channels))
-#+end_src
-**** set-thing-talker-channels!
-#+name: set-thing-talker-channels!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-talker-channels! changed-thing new-talker-channels)
-    (log-info "Setting ~a Talker-Channels to ~a"
-	      (thing-name changed-thing)
-	      new-talker-channels)
-    (cond [(thing-has-talker-channels? changed-thing)
-	   (set-thing-quality! changed-thing 'talker-channels new-talker-channels)]
-	  [else
-	   (add-talker-channels-to-thing! changed-thing new-talker-channels)]))
-#+end_src
-**** add-talker-channels-to-thing!
-#+name: add-talker-channels-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-talker-channels-to-thing! changed-thing [new-talker-channels '("cq")])
-    (unless (thing-has-talker-channels? changed-thing)
-      (log-debug "Adding Talker-Channels quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'talker-channels (void))
-      (set-thing-talker-channels! changed-thing new-talker-channels)))
-#+end_src
-** plan Terraforming
-*** bioregions
-**** thing-bioregions
-#+name: thing-bioregions-procedure
-#+begin_src racket :noweb yes
-  (define (thing-bioregions queried-thing)
-    (thing-quality queried-thing 'bioregions))
-#+end_src
-**** thing-has-bioregions?
-#+name: thing-has-bioregions?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-bioregions? queried-thing)
-    (thing-has-quality? queried-thing 'bioregions))
-#+end_src
-**** set-thing-bioregions!
-#+name: set-thing-bioregions!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-bioregions! changed-thing new-bioregions-list)
-    (log-info "Setting ~a bioregions to ~a"
-              (thing-name changed-thing)
-              (list-thing-names new-bioregions-list))
-    (cond [(thing-has-bioregions? changed-thing)
-           (set-thing-quality! changed-thing 'bioregions new-bioregions-list)]
-          [else
-           (add-bioregions-to-thing! changed-thing new-bioregions-list)]))
-#+end_src
-**** add-bioregions-to-thing!
-#+name: add-bioregions-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-bioregions-to-thing! changed-thing [new-bioregions #f])
-    (unless (thing-has-bioregions? changed-thing)
-      (log-debug "Adding bioregions quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'bioregions (list))
-      (when new-bioregions (set-thing-bioregions! changed-thing new-bioregions))))
-#+end_src
-**** thing-has-bioregion?
-#+name: thing-has-bioregion?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-bioregion? queried-thing potential-bioregion)
-    (log-debug "Checking if ~a is a bioregion of ~a"
-	       (thing-name potential-bioregion)
-	       (thing-name queried-thing))
-    (cond [(thing-has-quality? queried-thing 'bioregions)
-	   (let ([result (member potential-bioregion (thing-bioregions queried-thing))])
-	     (cond [result #t][else #f]))]
-	  [else #f]))
-#+end_src
-**** add-bioregion-to-thing!
-#+name: add-bioregion-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-bioregion-to-thing! new-bioregion changed-thing)
-    (log-info "Adding ~a to ~a's bioregions."
-	      (thing-name new-bioregion)
-	      (thing-name changed-thing))
-    (unless (thing-has-quality? changed-thing 'bioregions)
-      (log-debug "~a doesn't have the bioregions quality: triggering its addition."
-		 (thing-name changed-thing))
-      (add-bioregions-to-thing! changed-thing)
-      (log-debug "Now, moving ahead with adding ~a to ~a's bioregions."
-		 (thing-name new-bioregion)
-		 (thing-name changed-thing)))
-    (set-thing-bioregions! changed-thing (append (thing-bioregions changed-thing) (list new-bioregion))))
-
-#+end_src
-**** list-names-of-thing-bioregions
-#+name: list-names-of-thing-bioregions-procedure
-#+begin_src racket :noweb yes
-(define (list-names-of-thing-bioregions queried-thing)
-  (list-thing-names (thing-bioregions queried-thing)))
-#+end_src
-*** elevation
-**** thing-elevation
-**** add-elevation-to-thing!
-**** set-thing-elevation!
-**** thing-has-elevation?
-*** parent-bioregion
-**** thing-parent-bioregion
-#+name: thing-parent-bioregion-procedure
-#+begin_src racket :noweb yes
-  (define (thing-parent-bioregion queried-thing)
-    (thing-quality queried-thing 'parent-bioregion))
-#+end_src
-**** set-thing-parent-bioregion!
-#+name: set-thing-parent-bioregion!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-parent-bioregion! changed-thing new-parent-bioregion)
-    (log-info "Setting ~a's parent bioregion to ~a"
-              (thing-name changed-thing)
-              (thing-name new-parent-bioregion))
-    (set-thing-quality! changed-thing 'parent-bioregion new-parent-bioregion)
-    (unless (thing-has-bioregion? new-parent-bioregion changed-thing)
-      (log-debug "~a dosn't contain ~a in its list of bioregions: triggering its addition."
-                 (thing-name new-parent-bioregion)
-                 (thing-name changed-thing))
-      (add-bioregion-to-thing! changed-thing new-parent-bioregion)))
-#+end_src
-**** thing-has-parent-bioregion?
-#+name: thing-has-parent-bioregion?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-parent-bioregion? queried-thing)
-    (thing-has-quality? queried-thing 'parent-bioregion))
-#+end_src
-**** add-parent-bioregion-to-thing!
-#+name: add-parent-bioregion-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-parent-bioregion-to-thing! changed-thing new-parent-bioregion)
-    (unless (thing-has-parent-bioregion? changed-thing)
-      (log-debug "Adding parent bioregion quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'parent-bioregion (void))
-      (set-thing-parent-bioregion! changed-thing new-parent-bioregion)))
-#+end_src
-*** parent-poliregion
-*** populations
-*** generate-world-plane
-#+begin_src racket
-#lang racket
-
-(require plot)
-
-
-(define (clusterize data centroids)
-  (for*/fold ([res (map list centroids)])
-             ([x (in-list data)])
-    (define c (argmin (curryr (metric) x) centroids))
-    (dict-set res c (cons x (dict-ref res c)))))
-(define (euclidean-distance a b)
-  (for/sum ([x (in-vector a)] [y (in-vector b)])
-    (sqr (- x y))))
-(define metric (make-parameter euclidean-distance))
-
-
-;; Performs clustering of points in a grid
-;; using the nearest neigbour approach and shows
-;; clusters in different colors
-(define (plot-Voronoi-diagram point-list)
-  (define pts
-    (for*/list ([x (in-range 0 1 0.005)]
-                [y (in-range 0 1 0.005)])
-      (vector x y)))
-
-  (define clusters (clusterize pts point-list))
-
-  (plot
-   (append
-    (for/list ([r (in-list clusters)] [i (in-naturals)])
-      (points (rest r) #:color i #:sym 'fullcircle1))
-    (list (points point-list #:sym 'fullcircle5 #:fill-color 'white)))))
-
-
-
-(define pts
-  (for/list ([i 50]) (vector (random) (random))))
-
-(display (plot-Voronoi-diagram pts))
-#+end_src
-** document User Accounts
-*** user-name
-**** thing-user-name
-#+name: thing-user-name-procedure
-#+begin_src racket :noweb yes
-  (define (thing-user-name queried-thing)
-    (thing-quality queried-thing 'user-name))
-#+end_src
-**** thing-has-user-name?
-#+name: thing-has-user-name?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-user-name? queried-thing)
-    (thing-has-quality? queried-thing 'user-name))
-#+end_src
-**** set-thing-user-name!
-#+name: set-thing-user-name!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-user-name! changed-thing new-user-name)
-    (log-info "Setting ~a User-Name to ~a"
-	      (thing-name changed-thing)
-	      new-user-name)
-    (cond [(thing-has-user-name? changed-thing)
-	   (set-thing-quality! changed-thing 'user-name new-user-name)]
-	  [else
-	   (add-user-name-to-thing! changed-thing new-user-name)]))
-#+end_src
-**** add-user-name-to-thing!
-#+name: add-user-name-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-user-name-to-thing! changed-thing new-user-name)
-    (unless (thing-has-user-name? changed-thing)
-      (log-debug "Adding User-Name quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'user-name (void))
-      (set-thing-user-name! changed-thing new-user-name)))
-#+end_src
-*** user-password
-**** thing-user-password
-#+name: thing-user-password-procedure
-#+begin_src racket :noweb yes
-  (define (thing-user-password queried-thing)
-    (thing-quality queried-thing 'user-password))
-#+end_src
-**** thing-has-user-password?
-#+name: thing-has-user-password?-procedure
-#+begin_src racket :noweb yes
-  (define (thing-has-user-password? queried-thing)
-    (thing-has-quality? queried-thing 'user-password))
-#+end_src
-**** set-thing-user-password!
-#+name: set-thing-user-password!-procedure
-#+begin_src racket :noweb yes
-  (define (set-thing-user-password! changed-thing new-user-password)
-    (log-info "Setting ~a User-Password to ~a"
-	      (thing-name changed-thing)
-	      new-user-password)
-    (cond [(thing-has-user-password? changed-thing)
-	   (set-thing-quality! changed-thing 'user-password new-user-password)]
-	  [else
-	   (add-user-password-to-thing! changed-thing new-user-password)]))
-#+end_src
-**** add-user-password-to-thing!
-#+name: add-user-password-to-thing!-procedure
-#+begin_src racket :noweb yes
-  (define (add-user-password-to-thing! changed-thing new-user-password)
-    (unless (thing-has-user-password? changed-thing)
-      (log-debug "Adding User-Password quality to ~a" (thing-name changed-thing))
-      (set-thing-quality! changed-thing 'user-password (void))
-      (set-thing-user-password! changed-thing new-user-password)))
-#+end_src
-*** add-user-accounts-to-universe!-event
-#+name: add-user-accounts-to-universe!-event-procedure
-#+begin_src racket
-  (define (add-user-accounts-to-universe!-event
-	   [save-file "saved1-user-accounts.rktd"])
-    (define user-accounts (make-hash))
-    (define (user-account name) (hash-ref user-accounts name))
-    (define (user-account? name) (hash-has-key? user-accounts name))
-    (define (load-user-accounts)
-      (cond [(file-exists? save-file)
-	     (set! user-accounts (deserialize-file save-file))]
-	    [else
-	     (log-info "Invalid save file ~a cannot load accounts."
-		       save-file)]))
-    (define (register-user-account! reference-thing)
-      (let ([name (thing-name reference-thing)])
-	(log-info "Registering new user account for thing named ~a" name)
-	(hash-set! user-accounts name
-		   (make-hash
-		    (list
-		     (cons 'user-name (thing-user-name reference-thing))
-		     (cons 'user-password (thing-user-password reference-thing)))))
-	((universe-procedure (thing-universe reference-thing) 'save-user-accounts!))))
-    (define (save-user-accounts!)
-      (cond [(serializable? user-accounts)
-	     (with-output-to-file save-file
-	       (λ () (write (serialize user-accounts)))
-	       #:exists 'replace)
-	     (load-user-accounts)]
-	    [else
-	     (log-warning "User account data not serializable; data not saved.")]))
-    (λ (ticked-universe)
-      (log-info "Adding user accounts to universe ~a" (universe-name ticked-universe))
-      (set-universe-procedure!
-       ticked-universe 'user-account user-account)
-      (set-universe-procedure!
-       ticked-universe 'user-account? user-account?)
-      (set-universe-procedure!
-       ticked-universe 'load-user-accounts load-user-accounts)
-      (set-universe-procedure!
-       ticked-universe 'register-user-account! register-user-account!)
-      (set-universe-procedure!
-       ticked-universe 'save-user-accounts! save-user-accounts!)
-      (set-universe-procedure!
-       ticked-universe 'check-user-account-password?
-       (λ (queried-user-name provided-password)
-         (string=? (hash-ref (hash-ref user-accounts queried-user-name) 'user-password) provided-password)))
-      (load-user-accounts)
-      ticked-universe))
 #+end_src
 * MUDs
   :PROPERTIES:
@@ -1898,13 +839,6 @@ Johara settlement, in Johara Forest. [0/10]
       And a new =make-thing= procedure, but we'll skip that for now to look at how the new =set-thing-quality!= might look:
 
       #+begin_src racket
-	(define (join-list-of-strings-and-symbols-as-string unjoined-list string-separator)
-	  (string-join
-	   (map (λ (list-element)
-		  (cond [(string? list-element) list-element]
-			[(symbol? list-element) (symbol->string list-element)]))
-		unjoined-list)
-	   string-separator))
 
 	(define (set-thing-quality! changed-thing changed-quality new-value)
 	  (let ([set-thing-quality!-procedure-key
@@ -1929,7 +863,7 @@ Johara settlement, in Johara Forest. [0/10]
 * Complete Files
   :PROPERTIES:
   :EXPORT_HUGO_SECTION: programming/qtmud/files/
-  :header-args: :noweb yes
+  :header-args: :mkdirp yes :noweb yes :padline yes
   :END:
 ** qtmud.rkt
 #+name: qtmud.rkt
@@ -1944,8 +878,7 @@ Johara settlement, in Johara Forest. [0/10]
 	   (struct-out thing)
 	   deserialize-file
 	   oxfordize-list
-           make-universe-logger
-           run-universe-logger
+	   join-list-of-strings-and-symbols-as-symbol
 	   make-universe
 	   increment-universe-tick-count!
 	   add-event-to-universe-schedule!
@@ -1953,315 +886,96 @@ Johara settlement, in Johara Forest. [0/10]
            universe-has-procedure?
 	   universe-procedure
 	   set-universe-procedure!
-	   tick-universe
-	   run-universe
-	   make-thing
-	   list-thing-names
+	   thing-has-universe?
 	   thing-has-quality?
 	   thing-quality
 	   set-thing-quality!
-	   make-thing-maker-for-universe)
+	   add-string-to-thing-quality!
+	   thing-has-procedure?
+	   thing-procedure
+	   list-thing-names
+           make-universe-logger
+           run-universe-logger
+	   make-universe
+	   tick-universe
+	   run-universe
+	   create-thing)
+
+
+  <<universe-struct>>
+  <<thing-struct>>
 
   <<deserialize-file-procedure>>
   <<oxfordize-list-procedure>>
-  <<make-universe-logger-procedure>>
-  <<run-universe-logger-procedure>>
+  <<join-list-of-strings-and-symbols-as-symbol-procedure>>
 
-  <<universe-struct>>
-  <<make-universe-procedure>>
   <<increment-universe-tick-count!-procedure>>
   <<add-event-to-universe-schedule!-procedure>>
   <<add-thing-to-universe-things!-procedure>>
   <<universe-has-procedure?-procedure>>
   <<universe-procedure-procedure>>
   <<set-universe-procedure!-procedure>>
-  <<tick-universe-procedure>>
-  <<run-universe-procedure>>
 
-  <<thing-struct>>
-  <<make-thing-procedure>>
-  <<list-thing-names-procedure>>
+  <<thing-has-universe?-procedure>>
   <<thing-has-quality?-procedure>>
   <<thing-quality-procedure>>
   <<set-thing-quality!-procedure>>
-  <<make-thing-maker-for-universe-procedure>>
+  <<add-string-to-thing-quality!-procedure>>
+
+  <<thing-has-procedure?-procedure>>
+  <<thing-procedure-procedure>>
+
+  <<list-thing-names-procedure>>
+
+  <<make-universe-logger-procedure>>
+  <<run-universe-logger-procedure>>
+
+  <<make-universe-procedure>>
+  <<tick-universe-procedure>>
+  <<run-universe-procedure>>
+
+  <<create-thing-procedure>>
 #+end_src
 ** components/
-*** animation.rkt
-#+name: animation.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/animation.rkt
-#lang racket
-
-(require "../qtmud.rkt"
-         "./areas.rkt"
-         "./containers.rkt"
-         "./mudsocket.rkt")
-
-(provide make-thing-look-at-thing
-         make-look-mudsocket-command-for-thing
-	 make-move-mudsocket-command-for-thing)
-
-<<make-thing-look-at-thing-procedure>>
-<<make-look-mudsocket-command-for-thing-procedure>>
-<<make-move-mudsocket-command-for-thing-procedure>>
-#+end_src
-*** areas.rkt
-#+name: areas.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/areas.rkt
-  #lang racket
-
-  (require "../qtmud.rkt")
-
-  (provide thing-area-description
-	   thing-has-area-description?
-	   set-thing-area-description!
-	   add-area-description-to-thing!
-	   thing-area-exits
-	   thing-has-area-exits?
-	   set-thing-area-exits!
-	   add-area-exits-to-thing!
-           make-map-from-areas)
-
-<<thing-area-description-procedure>>
-<<thing-has-area-description?-procedure>>
-<<set-thing-area-description!-procedure>>
-<<add-area-description-to-thing!-procedure>>
-<<thing-area-exits-procedure>>
-<<thing-has-area-exits?-procedure>>
-<<set-thing-area-exits!-procedure>>
-<<add-area-exits-to-thing!-procedure>>
-<<make-map-from-areas-procedure>>
-#+end_src
-*** containers.rkt
-#+name: containers.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/containers.rkt
-  #lang racket
-
-  (require "../qtmud.rkt")
-
-  (provide thing-contents
-	   thing-has-contents?
-	   set-thing-contents!
-	   add-contents-to-thing!
-	   add-thing-to-thing-contents!
-	   remove-thing-from-thing-contents!
-	   thing-parent-container
-	   thing-has-parent-container?
-	   set-thing-parent-container!
-	   add-parent-container-to-thing!)
-
-  <<thing-contents-procedure>>
-  <<thing-has-contents?-procedure>>
-  <<set-thing-contents!-procedure>>
-  <<add-contents-to-thing!-procedure>>
-  <<add-thing-to-thing-contents!-procedure>>
-  <<remove-thing-from-thing-contents!-procedure>>
-  <<thing-parent-container-procedure>>
-  <<thing-has-parent-container?-procedure>>
-  <<set-thing-parent-container!-procedure>>
-  <<add-parent-container-to-thing!-procedure>>
-#+end_src
 *** mudsocket.rkt
 #+name: mudsocket.rkt
 #+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/mudsocket.rkt
-#lang racket
+  #lang racket
 
-(require uuid)
+  (require uuid)
 
-(require "../qtmud.rkt"
-         "./talker.rkt"
-         "./user-accounts.rkt")
+  (require "../qtmud.rkt")
 
-(provide thing-mudsocket-commands
-	 thing-has-mudsocket-commands?
-	   set-thing-mudsocket-commands!
-	   add-mudsocket-commands-to-thing!
-           add-mudsocket-command-to-thing!
-           add-new-mudsocket-commands-to-thing!
-	   thing-mudsocket-in
-	   thing-has-mudsocket-in?
-	   set-thing-mudsocket-in!
-	   add-mudsocket-in-to-thing!
-	   thing-mudsocket-input-buffer
-	   thing-has-mudsocket-input-buffer?
-	   set-thing-mudsocket-input-buffer!
-	   add-mudsocket-input-buffer-to-thing!
-	   thing-mudsocket-ip
-	   thing-has-mudsocket-ip?
-	   set-thing-mudsocket-ip!
-	   add-mudsocket-ip-to-thing!
-	   thing-mudsocket-out
-	   thing-has-mudsocket-out?
-	   set-thing-mudsocket-out!
-	   add-mudsocket-out-to-thing!
-	   thing-mudsocket-output-buffer
-	   thing-has-mudsocket-output-buffer?
-	   set-thing-mudsocket-output-buffer!
-	   add-mudsocket-output-buffer-to-thing!
-           clear-thing-mudsocket-output-buffer!
-           add-string-to-thing-mudsocket-output-buffer!
-	   thing-mudsocket-parser
-	   thing-has-mudsocket-parser?
-	   set-thing-mudsocket-parser!
-	   add-mudsocket-parser-to-thing!
+  (provide make-mudsocket-tick-event-for-universe
 	   make-mudsocket-parser-for-thing
-	   make-mudsocket-login-parser-for-thing
-	   thing-mudsocket-port
-	   thing-has-mudsocket-port?
-	   set-thing-mudsocket-port!
-	   add-mudsocket-port-to-thing!
-	   thing-mudsocket-sender
-	   thing-has-mudsocket-sender?
-	   set-thing-mudsocket-sender!
-	   add-mudsocket-sender-to-thing!
-	   make-mudsocket-sender-for-thing
-	   make-commands-mudsocket-command-for-thing
-           make-help-mudsocket-command-for-thing
-           make-who-mudsocket-command-for-thing
-	   make-mudsocket-tick-event-for-universe)
+	   make-mudsocket-sender-for-thing)
 
-  <<thing-mudsocket-commands-procedure>>
-  <<thing-has-mudsocket-commands?-procedure>>
-  <<set-thing-mudsocket-commands!-procedure>>
-  <<add-mudsocket-commands-to-thing!-procedure>>
-  <<add-mudsocket-command-to-thing!-procedure>>
-  <<add-new-mudsocket-commands-to-thing!-procedure>>
 
-  <<thing-mudsocket-in-procedure>>
-  <<thing-has-mudsocket-in?-procedure>>
-  <<set-thing-mudsocket-in!-procedure>>
-  <<add-mudsocket-in-to-thing!-procedure>>
-
-  <<thing-mudsocket-input-buffer-procedure>>
-  <<thing-has-mudsocket-input-buffer?-procedure>>
-  <<set-thing-mudsocket-input-buffer!-procedure>>
-  <<add-mudsocket-input-buffer-to-thing!-procedure>>
-
-  <<thing-mudsocket-ip-procedure>>
-  <<thing-has-mudsocket-ip?-procedure>>
-  <<set-thing-mudsocket-ip!-procedure>>
-  <<add-mudsocket-ip-to-thing!-procedure>>
-
-  <<thing-mudsocket-out-procedure>>
-  <<thing-has-mudsocket-out?-procedure>>
-  <<set-thing-mudsocket-out!-procedure>>
-  <<add-mudsocket-out-to-thing!-procedure>>
-
-  <<thing-mudsocket-output-buffer-procedure>>
-  <<thing-has-mudsocket-output-buffer?-procedure>>
-  <<set-thing-mudsocket-output-buffer!-procedure>>
-  <<add-mudsocket-output-buffer-to-thing!-procedure>>
-  <<clear-thing-mudsocket-output-buffer!-procedure>>
-  <<add-string-to-thing-mudsocket-output-buffer!-procedure>>
-
-  <<thing-mudsocket-parser-procedure>>
-  <<thing-has-mudsocket-parser?-procedure>>
-  <<set-thing-mudsocket-parser!-procedure>>
-  <<add-mudsocket-parser-to-thing!-procedure>>
-  <<make-mudsocket-parser-for-thing-procedure>>
-  <<make-mudsocket-login-parser-for-thing-procedure>>
-
-  <<thing-mudsocket-port-procedure>>
-  <<thing-has-mudsocket-port?-procedure>>
-  <<set-thing-mudsocket-port!-procedure>>
-  <<add-mudsocket-port-to-thing!-procedure>>
-
-  <<thing-mudsocket-sender-procedure>>
-  <<thing-has-mudsocket-sender?-procedure>>
-  <<set-thing-mudsocket-sender!-procedure>>
-  <<add-mudsocket-sender-to-thing!-procedure>>
-  <<make-mudsocket-sender-for-thing-procedure>>
+  <<make-mudsocket-tick-event-for-universe>>
 
   <<make-commands-mudsocket-command-for-thing-procedure>>
   <<make-help-mudsocket-command-for-thing-procedure>>
   <<make-who-mudsocket-command-for-thing-procedure>>
 
-<<make-mudsocket-tick-event-for-universe>>
-
+  <<make-mudsocket-parser-for-thing-procedure>>
+  <<make-mudsocket-sender-for-thing-procedure>>
 #+end_src
-*** politics.rkt
-#+name politics.rkt
-#+begin_src racket
-#+end_src
-*** talker.rkt
-#+name: talker.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/talker.rkt
+** muds
+*** test-mud.rkt
+#+name: test-mud.rkt
+#+begin_src racket :tangle ./muds/test-mud.rkt
   #lang racket
 
-  (require "../qtmud.rkt")
+  (require "../qtmud.rkt"
+	   "../components/mudsocket.rkt")
 
-  (provide thing-talker-channels
-	  thing-has-talker-channels?
-	  set-thing-talker-channels!
-	  add-talker-channels-to-thing!
-	  make-talker-setup-event)
+  (define test-universe (make-universe "Testverse"))
 
+  (run-universe-logger (make-universe-logger test-universe))
 
-  <<make-talker-setup-event-procedure>>
-  <<thing-talker-channels-procedure>>
-  <<thing-has-talker-channels?-procedure>>
-  <<set-thing-talker-channels!-procedure>>
-  <<add-talker-channels-to-thing!-procedure>>
+  (add-event-to-universe-schedule!
+   (make-mudsocket-tick-event-for-universe test-universe)
+   test-universe)
 
-#+end_src
-*** terraforming.rkt
-#+name: terraforming.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/terraforming.rkt
-#lang racket
-
-(require "../qtmud.rkt")
-
-(provide thing-bioregions
-         add-bioregions-to-thing!
-	 set-thing-bioregions!
-	 thing-has-bioregions?
-         thing-has-bioregion?
-	 add-bioregion-to-thing!
-         thing-parent-bioregion
-         set-thing-parent-bioregion!
-         thing-has-parent-bioregion?
-         add-parent-bioregion-to-thing!)
-  <<thing-bioregions-procedure>>
-  <<add-bioregions-to-thing!-procedure>>
-  <<set-thing-bioregions!-procedure>>
-  <<thing-has-bioregions?-procedure>>
-  <<thing-has-bioregion?-procedure>>
-  <<add-bioregion-to-thing!-procedure>>
-  <<list-names-of-thing-bioregions-procedure>>
-
-
-  <<thing-parent-bioregion-procedure>>
-  <<set-thing-parent-bioregion!-procedure>>
-  <<thing-has-parent-bioregion?-procedure>>
-  <<add-parent-bioregion-to-thing!-procedure>>
-#+end_src
-*** user-accounts.rkt
-#+name: user-accounts.rkt
-#+begin_src racket :mkdirp yes :tangle ~/racket/qtmud/components/user-accounts.rkt
-#lang racket
-
-(require racket/serialize)
-
-(require "../qtmud.rkt")
-
-(provide 	   thing-user-name
-	   thing-has-user-name?
-	   set-thing-user-name!
-	   add-user-name-to-thing!
-	   thing-user-password
-	   thing-has-user-password?
-	   set-thing-user-password!
-	   add-user-password-to-thing!
-	   add-user-accounts-to-universe!-event)
-  <<thing-user-name-procedure>>
-  <<thing-has-user-name?-procedure>>
-  <<set-thing-user-name!-procedure>>
-  <<add-user-name-to-thing!-procedure>>
-
-  <<thing-user-password-procedure>>
-  <<thing-has-user-password?-procedure>>
-  <<set-thing-user-password!-procedure>>
-  <<add-user-password-to-thing!-procedure>>
-<<add-user-accounts-to-universe!-event-procedure>>
-
+  (define test-mud (run-universe test-universe))
 #+end_src
