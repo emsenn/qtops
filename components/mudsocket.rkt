@@ -10,13 +10,73 @@
 
 
 (define (make-mudsocket-commands-for-thing target-thing)
-  (make-hash))
+  (list))
 
-(define (make-mudsocket-parser-for-thing target-thing)
- (λ (input-line) (void)))
+(define (make-mudsocket-parser-for-thing parsing-thing)
+  (define (parse-args args)
+    (let ([results (make-hash)])
+      (map
+       (λ (arg)
+	 (cond [(and (> (string-length arg) 2)
+		     (string=? (substring arg 0 2) "--"))
+		(let* ([split-arg (string-split arg "=")]
+		       [arg-key (substring (car split-arg) 2)]
+			   [arg-value (cdr split-arg)])
+		  (hash-set! results arg-key arg-value))]
+	       [(string=? (substring arg 0 1) "-")
+		(map
+		 (λ (char)
+		   (hash-set! results char #t)))]
+	       [else (hash-set! results 'line (cond [(hash-has-key? results 'line)
+						     (append (hash-ref results 'line)
+							     (list arg))]
+						    [else (list arg)]))]))
+       args)
+      (when (hash-has-key? results 'line)
+	(hash-set! results 'line (string-join (hash-ref results 'line))))
+      results))
+  (λ (input-line)
+    (let ([response ""]
+	  [commands (thing-quality parsing-thing 'mudsocket-commands)])
+      (log-debug "Parsing a line from ~a:\n  ~a"
+		 (thing-name parsing-thing) input-line)
+      (when (> (string-length input-line) 0)
+	(let* ([split-input-line (string-split input-line)]
+	       [first-word (car split-input-line)]
+	       [parsed-args (parse-args (cdr split-input-line))])
+	  (cond [(hash-has-key? commands first-word)
+		 ((hash-ref commands first-word) parsed-args)]
+		[else (set! response "Invalid command.")]))
+	(when (> (string-length response) 0)
+	  (add-string-to-thing-quality! response parsing-thing
+				       'mudsocket-output-buffer))))))
 
-(define (make-mudsocket-sender-for-thing target-thing)
- (λ () (void)))
+(define (make-mudsocket-sender-for-thing receiving-thing)
+  (λ ()
+    (let ([receiving-thing-name (thing-name receiving-thing)]
+	  [receiving-thing-mudsocket-out (thing-quality receiving-thing
+							'mudsocket-out)]
+	  [text-to-send (thing-quality receiving-thing 'mudsocket-output-buffer)])
+      (log-debug "Sending ~a a message:\n  ~a"
+		   receiving-thing-name
+		   text-to-send)
+	(with-handlers
+	    ([exn?
+	      (λ (e)
+		(log-warning "Issue sending message to ~a: ~a"
+			     receiving-thing-name
+			     e))])
+	  (display
+	   (format
+	    (cond
+	      [(eq? #\newline
+		    (last (string->list text-to-send)))
+	       "~a"]
+	      [else "~a\n"])
+	    text-to-send)
+	   receiving-thing-mudsocket-out)
+	  (flush-output receiving-thing-mudsocket-out)
+	  (set-thing-quality! receiving-thing 'mudsocket-output-buffer "")))))
 
 (define (change-thing-into-mudsocket-client! changed-thing
 					  in out ip port)
@@ -28,8 +88,8 @@
 	 (mudsocket-out . ,out)
 	 (mudsocket-ip . ,ip)
 	 (mudsocket-port . ,port)
-	 (mudsocket-commands . ,(make-mudsocket-commands-for-thing
-				 changed-thing))
+	 (mudsocket-commands . ,(make-hash (make-mudsocket-commands-for-thing
+					    changed-thing)))
 	 (mudsocket-output-buffer . "")
 	 (mudsocket-parser . ,(make-mudsocket-parser-for-thing
 			       changed-thing))

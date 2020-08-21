@@ -11,4 +11,4 @@
  (make-mudsocket-tick-event-for-universe test-universe)
  test-universe)
 
-(define test-mud (run-universe test-universe 10))
+(define test-mud (run-universe test-universe 2))
