@@ -3,7 +3,7 @@
 (require "../qtmud.rkt"
 	 "../components/mudsocket.rkt")
 
-(define test-universe (make-universe "Testverse"))
+(define test-universe (create-universe "Testverse"))
 
 (run-universe-logger (make-universe-logger test-universe 'debug))
 

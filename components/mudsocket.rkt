@@ -8,9 +8,58 @@
 	 make-mudsocket-parser-for-thing
 	 make-mudsocket-sender-for-thing)
 
+(define (make-commands-mudsocket-command-for-thing
+	 commanding-thing)
+  (λ (args)
+    (add-string-to-thing-quality!
+     (format
+      "You have access to the following commands: ~a"
+      (oxfordize-list (hash-keys (thing-quality commanding-thing
+						'mudsocket-commands))))
+     commanding-thing 'mudsocket-output-buffer)))
+
+(define (make-help-mudsocket-command-for-thing commanding-thing)
+  (λ (command-arguments)
+    (let ([commanding-thing-universe (thing-universe commanding-thing)])
+      (add-string-to-thing-quality!
+       (cond [(universe-has-procedure? commanding-thing-universe
+				       'make-mudsocket-help-response)
+	      ((universe-procedure commanding-thing-universe
+				   'make-mudsocket-help-response)
+	       commanding-thing)]
+	    [else
+	     (format
+	      "You're connected to a qtMUD server named ~a. Your user-name is ~a.\nTo interact, type commands and press ENTER. A few useful commands:\n- commands returns a list of your available commands\n- help returns some generally helpful information\n- who returns a list of currently-connected users."
+	      (universe-name commanding-thing-universe)
+	      (thing-name commanding-thing))])
+      commanding-thing 'mudsocket-output-buffer))))
+
+(define (make-quit-mudsocket-command-for-thing
+	 commanding-thing)
+  (λ (args)
+    (add-string-to-thing-quality!
+     (format
+      "You quit: you are leaving the dimension and your connection will be closed.")
+     commanding-thing 'mudsocket-output-buffer)
+    ((thing-quality commanding-thing 'mudsocket-sender))
+    ((universe-procedure (thing-universe commanding-thing) 'quit-mudsocket-connection) commanding-thing)))
+
+(define (make-who-mudsocket-command-for-thing
+	 commanding-thing)
+  (λ (args)
+    (add-string-to-thing-quality!
+     (format
+      "There are ~a users currently connected; a specific list is unavailable."
+      (length ((universe-procedure (thing-universe commanding-thing)
+				   'list-mudsocket-current-connections))))
+     commanding-thing 'mudsocket-output-buffer)))
 
 (define (make-mudsocket-commands-for-thing target-thing)
-  (list))
+  (list
+   (cons "commands" (make-commands-mudsocket-command-for-thing target-thing))
+   (cons "help" (make-help-mudsocket-command-for-thing target-thing))
+   (cons "quit" (make-quit-mudsocket-command-for-thing target-thing))
+   (cons "who" (make-who-mudsocket-command-for-thing target-thing))))
 
 (define (make-mudsocket-parser-for-thing parsing-thing)
   (define (parse-args args)
@@ -95,12 +144,21 @@
 			       changed-thing))
 	 (mudsocket-sender . ,(make-mudsocket-sender-for-thing
 			       changed-thing))
-	 (talker-channels . ("cq")))))
+	 (talker-channels . ("cq"))))
+  (set-thing-name! changed-thing (string-join (list ip ":" (number->string port))
+					      "")))
 
 (define (make-mudsocket-tick-event-for-universe target-universe [port 4242])
   (log-debug "Making a MUDSocket tick event for ~a." (universe-name target-universe))
   (define mudsocket-listener (tcp-listen port 5 #t))
   (define current-connections '())
+  (define (disconnect-connection connected-thing)
+    (close-input-port (thing-quality connected-thing 'mudsocket-in))
+    (close-output-port (thing-quality connected-thing 'mudsocket-out))
+    (set! current-connections (remove connected-thing current-connections))
+    (log-info "MUDSocket disconnected connection from ~a:~a"
+	      (thing-quality connected-thing 'mudsocket-ip)
+	      (thing-quality connected-thing 'mudsocket-port)))
   (define (tick-mudsocket-event ticked-universe)
     (define (accept-new-connection)
       (define-values (mudsocket-in mudsocket-out)
@@ -118,10 +176,6 @@
       (set! current-connections (append (list connected-thing) current-connections))
       (log-debug "Added ~a into the list of current connections."
 		 (thing-name connected-thing))
-      (add-thing-to-universe-things! connected-thing ticked-universe)
-      (log-debug "Added ~a into ~a's list of things."
-		 (thing-name connected-thing)
-		 (universe-name ticked-universe))
       (when (universe-has-procedure? ticked-universe 'handle-mudsocket-connection)
 	((universe-procedure ticked-universe 'handle-mudsocket-connection)
 	 connected-thing))
@@ -144,7 +198,7 @@
 	     [connected-thing-mudsocket-out
 	      (thing-quality connected-thing 'mudsocket-out)]
 	     [connected-thing-mudsocket-ip
-	      (thing-quality connected-thing 'mudsocket-thing)]
+	      (thing-quality connected-thing 'mudsocket-ip)]
 	     [connected-thing-mudsocket-port
 	      (thing-quality connected-thing 'mudsocket-port)]
 	     [connected-thing-mudsocket-output-buffer
@@ -153,17 +207,10 @@
 	      (thing-quality connected-thing 'mudsocket-parser)]
 	     [connected-thing-mudsocket-sender
 	      (thing-quality connected-thing 'mudsocket-sender)])
-	 (define (disconnect)
-	   (close-input-port connected-thing-mudsocket-in)
-	   (close-output-port connected-thing-mudsocket-out)
-	   (set! current-connections (remove connected-thing current-connections))
-	   (log-info "MUDSocket disconnected connection from ~a:~a"
-		     connected-thing-mudsocket-ip
-		     connected-thing-mudsocket-port))
 	 ; todo: add ^-- (destroy-thing connected-thing) above
 	 (cond
 	   [(port-closed? connected-thing-mudsocket-in)
-	    (disconnect)]
+	    (disconnect-connection connected-thing)]
 	   [(byte-ready? connected-thing-mudsocket-in)
 	    (with-handlers
 		([exn:fail:read?
@@ -180,7 +227,7 @@
 		       (connected-thing-mudsocket-parser
 			(string-trim connected-thing-line-in))]
 		      [(eof-object? connected-thing-line-in)
-		       (disconnect)])))])
+		       (disconnect-connection connected-thing)])))])
 	      (when (> (string-length connected-thing-mudsocket-output-buffer) 0)
 		(connected-thing-mudsocket-sender))))
      current-connections)
@@ -189,4 +236,6 @@
     (add-event-to-universe-schedule! tick-mudsocket-event ticked-universe))
   (set-universe-procedure! target-universe 'list-mudsocket-current-connections
 			   (λ () current-connections))
+  (set-universe-procedure! target-universe 'quit-mudsocket-connection
+			   (λ (connected-thing) (disconnect-connection connected-thing)))
   tick-mudsocket-event)

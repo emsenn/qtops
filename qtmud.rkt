@@ -9,7 +9,6 @@
 	 deserialize-file
 	 oxfordize-list
 	 join-list-of-strings-and-symbols-as-symbol
-	 make-universe
 	 increment-universe-tick-count!
 	 add-event-to-universe-schedule!
 	 add-thing-to-universe-things!
@@ -21,12 +20,18 @@
 	 thing-quality
 	 set-thing-quality!
 	 add-string-to-thing-quality!
+	 add-element-to-thing-quality!
+	 add-elements-to-thing-quality!
+	 remove-element-from-thing-quality!
+	 add-keyvalue-to-thing-quality!
+	 add-keyvalues-to-thing-quality!
+	 remove-key-from-thing-quality!
 	 thing-has-procedure?
 	 thing-procedure
 	 list-thing-names
          make-universe-logger
          run-universe-logger
-	 make-universe
+	 create-universe
 	 tick-universe
 	 run-universe
 	 create-thing)
@@ -205,7 +210,30 @@
 			       (string-join
 				(list
 				 (thing-quality changed-thing changed-quality)
-				 input-string)))])))
+				 input-string) ""))])))
+(define (add-element-to-thing-quality! new-element changed-thing changed-quality)
+  (set-thing-quality! changed-thing changed-quality
+		      (append (thing-quality changed-thing changed-quality)
+			      (list new-element))))
+
+(define (add-elements-to-thing-quality! new-elements changed-thing changed-quality)
+  (set-thing-quality! changed-thing changed-quality
+		      (append (thing-quality changed-thing changed-quality)
+			      new-elements)))
+(define (remove-element-from-thing-quality! removed-element changed-thing changed-quality)
+  (set-thing-quality! changed-thing changed-quality
+		      (remove (thing-quality changed-thing changed-quality)
+			      removed-element)))
+
+(define (add-keyvalue-to-thing-quality! new-keyvalue changed-thing changed-quality)
+  (hash-set! (thing-quality changed-thing changed-quality)
+	     (car new-keyvalue) (cdr new-keyvalue)))
+(define (add-keyvalues-to-thing-quality! new-keyvalues changed-thing changed-quality)
+  (map (λ (new-keyvalue)
+	 (add-keyvalue-to-thing-quality! new-keyvalue changed-thing changed-quality))
+       new-keyvalues))
+(define (remove-key-from-thing-quality! removed-key changed-thing changed-quality)
+  (hash-remove! (thing-quality changed-thing changed-quality) removed-key))
 
 (define (thing-has-procedure? queried-thing queried-procedure)
   (cond [(hash-has-key? (thing-procedures queried-thing) queried-procedure) #t]
@@ -227,7 +255,8 @@
 
 (define (make-universe-logger logging-universe [loglevel 'info])
   (define universe-log
-    (make-logger (string->symbol (universe-name logging-universe))))
+    (make-logger ;(string->symbol (universe-name logging-universe))
+     'MUD))
   (define universe-log-receiver
     (make-log-receiver universe-log loglevel))
   (cons universe-log universe-log-receiver))
@@ -241,7 +270,7 @@
 		(let ([log-level (vector-ref log-vector 0)]
 		      [log-string (substring
 				   (vector-ref log-vector 1)
-				   11
+				   5
 				   (length (string->list
 					    (vector-ref log-vector 1))))])
 		  (cond[ (eq? log-level 'debug)
@@ -251,7 +280,7 @@
 			 (printf "\"~a\"\n" log-string)]))
 		(log-loop))))))
 
-(define (make-universe [name "qtVerse"] [events '()])
+(define (create-universe [name "qtVerse"] [events '()])
   (log-info "Making a new universe named ~a" name)
   (universe name 0 events (list) (make-hash)))
 (define (tick-universe ticked-universe)
@@ -270,7 +299,7 @@
 	(loop))))
   (log-debug "Universe ~a has ended its tick, count #~a" (universe-name ticked-universe) (universe-tick-count ticked-universe))
   ticked-universe)
-(define (run-universe running-universe [tick-rate 200])
+(define (run-universe running-universe [tick-rate 0.2])
   (thread
    (λ () (let loop ()
 	   (set! running-universe (tick-universe running-universe))
