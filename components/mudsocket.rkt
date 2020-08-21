@@ -53,8 +53,15 @@
       (change-thing-into-mudsocket-client! connected-thing
 					 mudsocket-in mudsocket-out
 					 remote-ip remote-port)
+      (log-debug "Changed ~a into a proper MUDsocket client."
+		 (thing-name connected-thing))
       (set! current-connections (append (list connected-thing) current-connections))
+      (log-debug "Added ~a into the list of current connections."
+		 (thing-name connected-thing))
       (add-thing-to-universe-things! connected-thing ticked-universe)
+      (log-debug "Added ~a into ~a's list of things."
+		 (thing-name connected-thing)
+		 (universe-name ticked-universe))
       (when (universe-has-procedure? ticked-universe 'handle-mudsocket-connection)
 	((universe-procedure ticked-universe 'handle-mudsocket-connection)
 	 connected-thing))

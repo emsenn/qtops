@@ -5,10 +5,10 @@
 
 (define test-universe (make-universe "Testverse"))
 
-(run-universe-logger (make-universe-logger test-universe))
+(run-universe-logger (make-universe-logger test-universe 'debug))
 
 (add-event-to-universe-schedule!
  (make-mudsocket-tick-event-for-universe test-universe)
  test-universe)
 
-(define test-mud (run-universe test-universe))
+(define test-mud (run-universe test-universe 10))

@@ -55,7 +55,7 @@
                   #:before-first ""
                   #:before-last ", and ")]))
 (define (join-list-of-strings-and-symbols-as-symbol
-	 unjoined-list string-separator)
+	 unjoined-list [string-separator ""])
   (string-join
    (map (λ (list-element)
 	  (cond [(string? list-element) list-element]
@@ -102,7 +102,7 @@
     (let ([thing-has-quality?-procedure-key
 	   (join-list-of-strings-and-symbols-as-symbol
 	    (list "thing-has-" queried-quality "?"))])
-    (cond [(thing-has-procedure? thing-has-quality?-procedure-key)
+    (cond [(thing-has-procedure? queried-thing thing-has-quality?-procedure-key)
 	   (log-debug "~a has a procedure for checking itself for ~a quality; using it."
 		      queried-thing-name queried-quality)
 	   ((thing-procedure queried-thing thing-has-quality?-procedure-key))]
@@ -131,7 +131,7 @@
   (let ([thing-quality-procedure-key
 	 (join-list-of-strings-and-symbols-as-symbol
 	  (list "thing-" queried-quality))])
-    (cond [(thing-has-procedure? thing-quality-procedure-key)
+    (cond [(thing-has-procedure? queried-thing thing-quality-procedure-key)
 	   (log-debug "~a has a procedure for checking the value of its own ~a quality: using it."
 		      queried-thing-name queried-quality)
 	   ((thing-procedure queried-thing thing-quality-procedure-key)
@@ -148,40 +148,41 @@
 	  [else
 	   (cond [(thing-has-quality? queried-thing queried-quality)
 		  (hash-ref (thing-qualities queried-thing) queried-quality)]
-		 [else (error "~a doesn't have the ~a quality."
+		 [else (log-error "~a doesn't have the ~a quality."
 			      queried-thing-name queried-quality)])])))
-(define (set-thing-quality! changed-thing changed-quality new-value)
-  (let ([changed-thing-name (thing-name changed-thing)]
-	[changed-thing-universe
-	 (cond [(thing-has-universe? changed-thing)
-		(thing-universe changed-thing)]
-	       [else #f])]
-	[set-thing-quality!-procedure-key
-	 (join-list-of-strings-and-symbols-as-symbol
-	  (list "set-thing-" changed-quality "!"))])
-    (log-debug "Setting ~a's ~a quality to ~a."
-	       changed-thing-name changed-quality new-value)
-    (cond [(thing-has-procedure? set-thing-quality!-procedure-key)
-	   (log-debug "~a has a procedure for setting its own ~a quality: using it."
-		      changed-thing-name changed-quality)
-	   ((thing-procedure changed-thing set-thing-quality!-procedure-key)
-	    new-value)]
-	  [(and changed-thing-universe
-		(universe-has-procedure? changed-thing-universe
-					 set-thing-quality!-procedure-key))
-	   (log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
-		      changed-thing-name
-		      (universe-name changed-thing-universe)
-		      changed-quality)
-	   ((universe-procedure changed-thing-universe
-				set-thing-quality!-procedure-key)
-	    changed-thing new-value)]
-	  [else
-	   (let ([changed-thing-qualities (thing-qualities changed-thing)])
-	     (cond [(hash-has-key? changed-thing-qualities changed-quality)
-		    (hash-set! changed-thing-qualities changed-quality new-value)]
-		   [else (error "~a doesn' thave the ~a quality."
-				changed-thing-name)]))])))
+(define (set-thing-quality! changed-thing changed-quality new-value [add-quality? #f])
+  (cond [(or add-quality? (thing-has-quality? changed-thing changed-quality))
+	 (let ([changed-thing-name (thing-name changed-thing)]
+	       [changed-thing-universe
+		(cond [(thing-has-universe? changed-thing)
+		       (thing-universe changed-thing)]
+		      [else #f])]
+	       [set-thing-quality!-procedure-key
+		(join-list-of-strings-and-symbols-as-symbol
+		 (list "set-thing-" changed-quality "!"))])
+	   (log-debug "Setting ~a's ~a quality to ~a."
+		      changed-thing-name changed-quality new-value)
+	   (cond [(thing-has-procedure? changed-thing set-thing-quality!-procedure-key)
+		  (log-debug "~a has a procedure for setting its own ~a quality: using it."
+			     changed-thing-name changed-quality)
+		  ((thing-procedure changed-thing set-thing-quality!-procedure-key)
+		   new-value)]
+		 [(and changed-thing-universe
+		       (universe-has-procedure? changed-thing-universe
+						set-thing-quality!-procedure-key))
+		  (log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
+			     changed-thing-name
+			     (universe-name changed-thing-universe)
+			     changed-quality)
+		  ((universe-procedure changed-thing-universe
+				       set-thing-quality!-procedure-key)
+		   changed-thing new-value)]
+		 [else
+		  (let ([changed-thing-qualities (thing-qualities changed-thing)])
+		    (hash-set! changed-thing-qualities changed-quality new-value))]))]
+	[else
+	 (error "~a doesn't have the ~a quality."
+		(thing-name changed-thing) changed-quality)]))
 (define (add-string-to-thing-quality! input-string changed-thing changed-quality)
   (let ([changed-thing-name (thing-name changed-thing)]
 	[changed-thing-universe
@@ -191,7 +192,7 @@
 	[procedure-key
 	 (join-list-of-strings-and-symbols-as-symbol
 	  (list "add-string-to-thing-" changed-quality "!"))])
-    (cond [(thing-has-procedure? procedure-key)
+    (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) input-string)]
 	  [(and changed-thing-universe
 		(universe-has-procedure? changed-thing-universe
@@ -202,8 +203,9 @@
 	   (set-thing-quality! changed-thing
 			       changed-quality
 			       (string-join
-				(thing-quality changed-thing changed-quality)
-				input-string))])))
+				(list
+				 (thing-quality changed-thing changed-quality)
+				 input-string)))])))
 
 (define (thing-has-procedure? queried-thing queried-procedure)
   (cond [(hash-has-key? (thing-procedures queried-thing) queried-procedure) #t]
@@ -239,7 +241,7 @@
 		(let ([log-level (vector-ref log-vector 0)]
 		      [log-string (substring
 				   (vector-ref log-vector 1)
-				   12
+				   11
 				   (length (string->list
 					    (vector-ref log-vector 1))))])
 		  (cond[ (eq? log-level 'debug)
@@ -272,7 +274,7 @@
   (thread
    (λ () (let loop ()
 	   (set! running-universe (tick-universe running-universe))
-	   (sleep 0.2)
+	   (sleep tick-rate)
 	   (loop)))))
 
 (define (create-thing [name "thing"] [chosen-universe #f]
