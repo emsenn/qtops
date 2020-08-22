@@ -212,9 +212,20 @@
 				 (thing-quality changed-thing changed-quality)
 				 input-string) ""))])))
 (define (add-element-to-thing-quality! new-element changed-thing changed-quality)
-  (set-thing-quality! changed-thing changed-quality
-		      (append (thing-quality changed-thing changed-quality)
-			      (list new-element))))
+  (let ([procedure-key (join-list-of-strings-and-symbols-as-symbol
+			(list "add-element-to-thing-" changed-quality "!"))])
+    (log-warning "WANGDOODLE ~a " (thing-has-universe? changed-thing))
+    (cond [(thing-has-procedure? changed-thing procedure-key)
+	   ((thing-procedure changed-thing procedure-key) new-element)]
+	  [(and (thing-has-universe? changed-thing)
+		(universe-has-procedure? (thing-universe changed-thing)
+					 procedure-key))
+	   ((universe-procedure (thing-universe changed-thing) procedure-key)
+	    changed-thing new-element)]
+	  [else
+	   (set-thing-quality! changed-thing changed-quality
+			       (append (thing-quality changed-thing changed-quality)
+				       (list new-element)))])))
 
 (define (add-elements-to-thing-quality! new-elements changed-thing changed-quality)
   (set-thing-quality! changed-thing changed-quality
