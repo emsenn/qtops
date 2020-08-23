@@ -34,7 +34,8 @@
 	 create-universe
 	 tick-universe
 	 run-universe
-	 create-thing)
+	 create-thing
+	 create-thing-creator-for-universe)
 
 
 (struct universe (name tick-count schedule things procedures) #:mutable)
@@ -61,12 +62,13 @@
                   #:before-last ", and ")]))
 (define (join-list-of-strings-and-symbols-as-symbol
 	 unjoined-list [string-separator ""])
-  (string-join
-   (map (λ (list-element)
-	  (cond [(string? list-element) list-element]
-		[(symbol? list-element) (symbol->string list-element)]))
-	unjoined-list)
-   string-separator))
+  (string->symbol
+   (string-join
+    (map (λ (list-element)
+	   (cond [(string? list-element) list-element]
+		 [(symbol? list-element) (symbol->string list-element)]))
+	 unjoined-list)
+    string-separator)))
 
 (define (increment-universe-tick-count! incremented-universe [addition 1])
   (set-universe-tick-count!
@@ -214,14 +216,13 @@
 (define (add-element-to-thing-quality! new-element changed-thing changed-quality)
   (let ([procedure-key (join-list-of-strings-and-symbols-as-symbol
 			(list "add-element-to-thing-" changed-quality "!"))])
-    (log-warning "WANGDOODLE ~a " (thing-has-universe? changed-thing))
     (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) new-element)]
 	  [(and (thing-has-universe? changed-thing)
 		(universe-has-procedure? (thing-universe changed-thing)
 					 procedure-key))
 	   ((universe-procedure (thing-universe changed-thing) procedure-key)
-	    changed-thing new-element)]
+	    new-element changed-thing)]
 	  [else
 	   (set-thing-quality! changed-thing changed-quality
 			       (append (thing-quality changed-thing changed-quality)
@@ -294,6 +295,7 @@
 (define (create-universe [name "qtVerse"] [events '()])
   (log-info "Making a new universe named ~a" name)
   (universe name 0 events (list) (make-hash)))
+
 (define (tick-universe ticked-universe)
   (increment-universe-tick-count! ticked-universe)
   (log-debug "Universe ~a is beginning its tick, count #~a" (universe-name ticked-universe) (universe-tick-count ticked-universe))
@@ -336,3 +338,10 @@
     (when chosen-universe
       (add-thing-to-universe-things! created-thing chosen-universe))
     created-thing))
+
+(define (create-thing-creator-for-universe target-universe)
+  (λ ([name "thing"] #:grammar [grammar #f] #:qualities [qualities #f]
+      #:procedures [procedures #f])
+    (create-thing name target-universe
+		  #:grammar grammar #:qualities qualities
+		  #:procedures procedures)))

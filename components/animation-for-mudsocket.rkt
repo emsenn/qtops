@@ -8,25 +8,25 @@
 (define (make-look-mudsocket-command-for-thing commanding-thing)
   (λ (command-arguments)
     (cond [(hash-empty? command-arguments)
-	   (cond [(thing-has-quality? commanding-thing 'parent-container)
-		  (let ([commanding-thing-parent-container
-			 (thing-quality commanding-thing 'parent-container)])
+	   (cond [(thing-has-quality? commanding-thing 'container)
+		  (let ([commanding-thing-container
+			 (thing-quality commanding-thing 'container)])
 		    (add-string-to-thing-quality!
 		     (format "[    ~a    ]~a~a"
-			     (thing-name commanding-thing-parent-container)
-			     (cond [(thing-has-quality? commanding-thing-parent-container
+			     (thing-name commanding-thing-container)
+			     (cond [(thing-has-quality? commanding-thing-container
 							'area-description)
 				    (format "\n  ~a"
 					    (thing-quality
-					     commanding-thing-parent-container
+					     commanding-thing-container
 					     'area-description))]
 				   [else ""])
-			     (cond [(thing-has-quality? commanding-thing-parent-container
+			     (cond [(thing-has-quality? commanding-thing-container
 							'area-exits)
 				    (format "\n  Area exits: ~a"
 					    (oxfordize-list
 					     (hash-keys (thing-quality
-							 commanding-thing-parent-container
+							 commanding-thing-container
 							 'area-exits))))]
 				   [else ""]))
 		     commanding-thing 'mudsocket-output-buffer))]
@@ -45,20 +45,20 @@
 
   (define (make-move-mudsocket-command-for-thing commanding-thing)
     (λ (command-arguments)
-      (let* ([commanding-thing-parent-container (thing-quality commanding-thing
-							       'parent-container)]
-	     [commanding-thing-parent-container-area-exits
-	      (thing-quality commanding-thing-parent-container 'area-exits)])
+      (let* ([commanding-thing-container (thing-quality commanding-thing
+							       'container)]
+	     [commanding-thing-container-area-exits
+	      (thing-quality commanding-thing-container 'area-exits)])
 	(cond [(hash-has-key? command-arguments 'line)
 	       (let ([command-argument-line (hash-ref command-arguments 'line)])
-		 (cond [(hash-has-key? commanding-thing-parent-container-area-exits
+		 (cond [(hash-has-key? commanding-thing-container-area-exits
 				       command-argument-line)
 			(let ([destination-area
-			       (hash-ref commanding-thing-parent-container-area-exits
+			       (hash-ref commanding-thing-container-area-exits
 					 command-argument-line)])
 			  (remove-element-from-thing-quality!
 			   commanding-thing
-			   commanding-thing-parent-container
+			   commanding-thing-container
 			   'contents)
 			  (add-element-to-thing-quality!
 			   commanding-thing
