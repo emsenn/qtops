@@ -56,6 +56,7 @@
 			(let ([destination-area
 			       (hash-ref commanding-thing-container-area-exits
 					 command-argument-line)])
+			  (log-warning "BOOOOING ~a" destination-area)
 			  (remove-element-from-thing-quality!
 			   commanding-thing
 			   commanding-thing-container

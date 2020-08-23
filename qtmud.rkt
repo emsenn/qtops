@@ -180,7 +180,7 @@
 		  (log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
 			     changed-thing-name
 			     (universe-name changed-thing-universe)
-			     changed-quality)
+			     changed-thing-name changed-quality)
 		  ((universe-procedure changed-thing-universe
 				       set-thing-quality!-procedure-key)
 		   changed-thing new-value)]
@@ -234,8 +234,8 @@
 			      new-elements)))
 (define (remove-element-from-thing-quality! removed-element changed-thing changed-quality)
   (set-thing-quality! changed-thing changed-quality
-		      (remove (thing-quality changed-thing changed-quality)
-			      removed-element)))
+		      (remove removed-element
+			      (thing-quality changed-thing changed-quality))))
 
 (define (add-keyvalue-to-thing-quality! new-keyvalue changed-thing changed-quality)
   (hash-set! (thing-quality changed-thing changed-quality)
