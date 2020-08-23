@@ -15,6 +15,7 @@
          universe-has-procedure?
 	 universe-procedure
 	 set-universe-procedure!
+	 add-procedures-to-universe!
 	 thing-has-universe?
 	 thing-has-quality?
 	 thing-quality
@@ -48,7 +49,18 @@
       ([exn:fail:filesystem:errno?
 	(λ (E) (log-warning "Failed to deserialize file: ~a" E))])
       (with-input-from-file save-file (λ () (deserialize (read)))))))
+(define (replace-symbols-in-list-with-strings mixed-list)
+  (map (λ (list-element)
+	   (cond [(string? list-element) list-element]
+		 [(symbol? list-element) (symbol->string list-element)]
+		 [else
+		  (log-warning "While replacing symbols with strings in the following list, came across ~a which is neither. Leaving it unchanged. Provided list: ~a"
+			       list-element
+			       mixed-list)
+		  list-element]))
+       mixed-list))
 (define (oxfordize-list strings)
+  (set! strings (replace-symbols-in-list-with-strings strings))
   (cond
     [(null? strings)
      (log-warning "Tried to oxfordize an empty list.")]
@@ -64,10 +76,7 @@
 	 unjoined-list [string-separator ""])
   (string->symbol
    (string-join
-    (map (λ (list-element)
-	   (cond [(string? list-element) list-element]
-		 [(symbol? list-element) (symbol->string list-element)]))
-	 unjoined-list)
+    (replace-symbols-in-list-with-strings unjoined-list)
     string-separator)))
 
 (define (increment-universe-tick-count! incremented-universe [addition 1])
@@ -95,7 +104,23 @@
     changed-universe)
    new-procedure-key
    new-procedure))
-
+(define (add-procedures-to-universe! procedures-list target-universe)
+  (let ([length-of-procedures-list (length procedures-list)]
+	[target-universe-name (universe-name target-universe)]
+	[target-universe-procedures (universe-procedures target-universe)])
+    (cond [(> length-of-procedures-list 0)
+	   (log-info "Adding ~a new procedures to ~a: ~a"
+		     length-of-procedures-list target-universe-name
+		     (oxfordize-list procedures-list))
+	   (map (λ (added-procedure)
+		  (set-universe-procedure! target-universe
+					   (car added-procedure)
+					   (cdr added-procedure)))
+		procedures-list)]
+	  [else
+	   (log-warning "Tried to add an empty list of procedures to ~a"
+			target-universe-name)
+	   #f])))
 (define (thing-has-universe? queried-thing)
   (cond [(thing-universe queried-thing) #t][else #f]))
 (define (thing-has-quality? queried-thing queried-quality)

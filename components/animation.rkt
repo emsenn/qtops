@@ -34,7 +34,10 @@
 		      (thing-name changed-thing)
 		      new-element)]))
 
+(define animation-procedures
+  (list (cons 'add-element-to-thing-contents! add-element-to-thing-contents!)))
+
 (define (add-animation-procedures-to-universe! target-universe)
-  (set-universe-procedure!
-   target-universe
-   'add-element-to-thing-contents! add-element-to-thing-contents!))
+  (log-info "Adding animation procedures to ~a."
+	    (universe-name target-universe))
+  (add-procedures-to-universe! animation-procedures target-universe))
