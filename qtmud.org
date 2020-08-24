@@ -1,43 +1,16 @@
-#lang racket
+#+title: qtMUD
+#+description: Software for running traditionally text-interface services, typically role-playing games.
+qtMUD is a piece of software for running (traditionally) text-interface services, which are typically role-playing games.
 
-(require racket/serialize)
+What follows is the software's source code, including tests and demonstrations. Please note this project is in early development.
 
-(require uuid)
-
-(provide (struct-out universe)
-	 (struct-out thing)
-	 deserialize-file
-	 oxfordize-list
-	 join-list-of-strings-and-symbols-as-symbol
-	 increment-universe-tick-count!
-	 add-event-to-universe-schedule!
-	 add-thing-to-universe-things!
-	 universe-has-procedure?
-	 universe-procedure
-	 set-universe-procedure!
-	 add-procedures-to-universe!
-	 thing-has-universe?
-	 thing-has-quality?
-	 thing-quality
-	 set-thing-quality!
-	 add-string-to-thing-quality!
-	 add-element-to-thing-quality!
-	 add-elements-to-thing-quality!
-	 remove-element-from-thing-quality!
-	 add-keyvalue-to-thing-quality!
-	 add-keyvalues-to-thing-quality!
-	 remove-key-from-thing-quality!
-	 thing-has-procedure?
-	 thing-procedure
-	 list-thing-names
-	 make-universe-logger
-	 run-universe-logger
-	 create-universe
-	 tick-universe
-	 run-universe
-	 create-thing
-	 create-thing-creator-for-universe)
-
+Code is divided into the following sections:
+#+toc: headlines 2 local
+* Engine
+** Utilities
+*** Deserialize file
+#+name: deserialize-file-procedure
+#+begin_src racket
 (define (deserialize-file save-file)
   (when (file-exists? save-file)
     (log-debug "Deserializing file ~a" save-file)
@@ -47,6 +20,10 @@
 	  (log-warning "Failed to deserialize file: ~a" E))])
       (with-input-from-file save-file
 	(λ () (deserialize (read)))))))
+#+end_src
+*** Replace symbols in list with strings
+#+name: replace-symbols-in-list-with-strings-procedure
+#+begin_src racket
 (define (replace-symbols-in-list-with-strings mixed-list)
   (map (λ (list-element)
 	   (cond [(string? list-element) list-element]
@@ -58,6 +35,10 @@
 			       mixed-list)
 		  list-element]))
        mixed-list))
+#+end_src
+*** Oxfordize list
+#+name: oxfordize-list-procedure
+#+begin_src racket
 (define (oxfordize-list strings)
   (set! strings (replace-symbols-in-list-with-strings strings))
   (cond
@@ -71,31 +52,58 @@
      (string-join strings ", "
                   #:before-first ""
                   #:before-last ", and ")]))
-(define (join-list-of-strings-and-symbols-as-symbol
-	 unjoined-list [string-separator ""])
-	 (string->symbol
-	 (string-join
-	 (replace-symbols-in-list-with-strings unjoined-list)
-	 string-separator)))
-
-(struct universe
-  (name tick-count schedule things procedures)
-  #:mutable)
-(define (increment-universe-tick-count! incremented-universe
-					[addition 1])
-  (set-universe-tick-count!
-   incremented-universe
-   (+ (universe-tick-count incremented-universe)
-      addition)))
+#+end_src
+*** Join list of strings and symbols as symbol
+#+name: join-list-of-strings-and-symbols-as-symbol-procedure
+#+begin_src racket
+  (define (join-list-of-strings-and-symbols-as-symbol
+	   unjoined-list [string-separator ""])
+	   (string->symbol
+	   (string-join
+	   (replace-symbols-in-list-with-strings unjoined-list)
+	   string-separator)))
+#+end_src
+** Creating & changing universes
+#+name: universe-struct
+#+begin_src racket
+  (struct universe
+    (name tick-count schedule things procedures)
+    #:mutable)
+#+end_src
+*** Increment universe tick count
+#+name: increment-universe-tick-count!-procedure
+#+begin_src racket
+  (define (increment-universe-tick-count! incremented-universe
+					  [addition 1])
+    (set-universe-tick-count!
+     incremented-universe
+     (+ (universe-tick-count incremented-universe)
+	addition)))
+#+end_src
+*** Add event to universe schedule
+#+name: add-event-to-universe-schedule!-procedure
+#+begin_src racket
 (define (add-event-to-universe-schedule! new-event changed-universe)
   (cond [(procedure? new-event)
 	 (set-universe-schedule! changed-universe (append (universe-schedule changed-universe) (list new-event)))]
 	[else
 	 (log-warning "Tried to schedule non-procedure as event: ~a" new-event)]))
+#+end_src
+*** Add thing to universe things
+#+name: add-thing-to-universe-things!-procedure
+#+begin_src racket
 (define (add-thing-to-universe-things! new-thing changed-universe)
   (set-universe-things! changed-universe (append (universe-things changed-universe) (list new-thing))))
+#+end_src
+*** Universe has procedure?
+#+name: universe-has-procedure?-procedure
+#+begin_src racket
 (define (universe-has-procedure? queried-universe queried-procedure)
   (hash-has-key? (universe-procedures queried-universe) queried-procedure))
+#+end_src
+*** Universe procedure
+#+name: universe-procedure-procedure
+#+begin_src racket
 (define (universe-procedure queried-universe queried-procedure)
   (cond [(universe-has-procedure? queried-universe queried-procedure)
 	 (hash-ref (universe-procedures queried-universe) queried-procedure)]
@@ -103,36 +111,55 @@
 	 (log-warning "Tried to use procedure ~a from universe ~a, but it doesn't exist."
 		      queried-procedure
 		      (universe-name queried-universe))]))
+#+end_src
+*** Set universe procedure
+#+name: set-universe-procedure!-procedure
+#+begin_src racket
 (define (set-universe-procedure! changed-universe new-procedure-key new-procedure)
   (hash-set!
    (universe-procedures
     changed-universe)
    new-procedure-key
    new-procedure))
-(define (add-procedures-to-universe! procedures-list target-universe)
-  (let ([length-of-procedures-list (length procedures-list)]
-	[target-universe-name (universe-name target-universe)]
-	[target-universe-procedures (universe-procedures target-universe)])
-    (cond [(> length-of-procedures-list 0)
-	   (log-info "Adding ~a new procedures to ~a: ~a"
-		     length-of-procedures-list target-universe-name
-		     (oxfordize-list procedures-list))
-	   (map (λ (added-procedure)
-		  (set-universe-procedure! target-universe
-					   (car added-procedure)
-					   (cdr added-procedure)))
-		procedures-list)]
-	  [else
-	   (log-warning "Tried to add an empty list of procedures to ~a"
-			target-universe-name)
-	   #f])))
-
+#+end_src
+*** Add procedures to universe
+#+name: add-procedures-to-universe!-procedure
+#+begin_src racket
+  (define (add-procedures-to-universe! procedures-list target-universe)
+    (let ([length-of-procedures-list (length procedures-list)]
+	  [target-universe-name (universe-name target-universe)]
+	  [target-universe-procedures (universe-procedures target-universe)])
+      (cond [(> length-of-procedures-list 0)
+	     (log-info "Adding ~a new procedures to ~a: ~a"
+		       length-of-procedures-list target-universe-name
+		       (oxfordize-list procedures-list))
+	     (map (λ (added-procedure)
+		    (set-universe-procedure! target-universe
+					     (car added-procedure)
+					     (cdr added-procedure)))
+		  procedures-list)]
+	    [else
+	     (log-warning "Tried to add an empty list of procedures to ~a"
+			  target-universe-name)
+	     #f])))
+#+end_src
+** Creating & changing things
+#+name: thing-struct
+#+begin_src racket
 (struct thing
   (name universe grammar qualities procedures)
   #:mutable)
+#+end_src
+*** Thing has procedure?
+#+name: thing-has-procedure?-procedure
+#+begin_src racket
 (define (thing-has-procedure? queried-thing queried-procedure)
   (cond [(hash-has-key? (thing-procedures queried-thing) queried-procedure) #t]
         [else #f]))
+#+end_src
+*** Thing has quality?
+#+name: thing-has-quality?-procedure
+#+begin_src racket
 (define (thing-has-quality? queried-thing queried-quality)
   (let ([queried-thing-name (thing-name queried-thing)]
 	[queried-thing-universe
@@ -162,9 +189,17 @@
 	     (cond [(hash-has-key? queried-thing-qualities queried-quality)
 		    #t]
 		   [else #f]))]))))
+#+end_src
+*** Thing has universe?
+#+name: thing-has-universe?-procedure
+#+begin_src racket
 
 (define (thing-has-universe? queried-thing)
   (cond [(thing-universe queried-thing) #t][else #f]))
+#+end_src
+*** Thing quality
+#+name: thing-quality-procedure
+#+begin_src racket
 (define (thing-quality queried-thing queried-quality)
   (define queried-thing-name (thing-name queried-thing))
   (define queried-thing-universe
@@ -195,6 +230,21 @@
 		  (hash-ref (thing-qualities queried-thing) queried-quality)]
 		 [else (log-error "~a doesn't have the ~a quality."
 			      queried-thing-name queried-quality)])])))
+#+end_src
+*** Thing procedure
+#+name: thing-procedure-procedure
+#+begin_src racket
+(define (thing-procedure queried-universe queried-procedure)
+  (cond [(universe-has-procedure? queried-universe queried-procedure)
+	 (hash-ref (thing-procedures queried-universe) queried-procedure)]
+	[else
+	 (log-warning "Tried to use procedure ~a from universe ~a, but it doesn't exist."
+		      queried-procedure
+		      (universe-name queried-universe))]))
+#+end_src
+*** Set thing quality
+#+name: set-thing-quality!-procedure
+#+begin_src racket
 (define (set-thing-quality! changed-thing changed-quality new-value [add-quality? #f])
   (cond [(or add-quality? (thing-has-quality? changed-thing changed-quality))
 	 (let ([changed-thing-name (thing-name changed-thing)]
@@ -228,6 +278,10 @@
 	[else
 	 (error "~a doesn't have the ~a quality."
 		(thing-name changed-thing) changed-quality)]))
+#+end_src
+*** Add string to thing quality
+#+name: add-string-to-thing-quality!-procedure
+#+begin_src racket
 (define (add-string-to-thing-quality! input-string changed-thing changed-quality)
   (let ([changed-thing-name (thing-name changed-thing)]
 	[changed-thing-universe
@@ -251,6 +305,10 @@
 				(list
 				 (thing-quality changed-thing changed-quality)
 				 input-string) ""))])))
+#+end_src
+*** Add element to thing quality
+#+name: add-element-to-thing-quality!-procedure
+#+begin_src racket
 (define (add-element-to-thing-quality! new-element changed-thing changed-quality)
   (let ([procedure-key (join-list-of-strings-and-symbols-as-symbol
 			(list "add-element-to-thing-" changed-quality "!"))])
@@ -266,32 +324,50 @@
 			       (append (thing-quality changed-thing changed-quality)
 				       (list new-element)))])))
 
+#+end_src
+*** Add elements to thing quality
+#+name: add-elements-to-thing-quality!-procedure
+#+begin_src racket
 (define (add-elements-to-thing-quality! new-elements changed-thing changed-quality)
   (set-thing-quality! changed-thing changed-quality
 		      (append (thing-quality changed-thing changed-quality)
 			      new-elements)))
+#+end_src
+*** Remove element from thing quality
+#+name: remove-element-from-thing-quality!-procedure
+#+begin_src racket
 (define (remove-element-from-thing-quality! removed-element changed-thing changed-quality)
   (set-thing-quality! changed-thing changed-quality
 		      (remove removed-element
 			      (thing-quality changed-thing changed-quality))))
 
+#+end_src
+*** Add keyvalue to thing quality
+#+name: add-keyvalue-to-thing-quality!-procedure
+#+begin_src racket
 (define (add-keyvalue-to-thing-quality! new-keyvalue changed-thing changed-quality)
   (hash-set! (thing-quality changed-thing changed-quality)
 	     (car new-keyvalue) (cdr new-keyvalue)))
+#+end_src
+*** Add keyvalues to thing quality
+#+name: add-keyvalues-to-thing-quality!-procedure
+#+begin_src racket
 (define (add-keyvalues-to-thing-quality! new-keyvalues changed-thing changed-quality)
   (map (λ (new-keyvalue)
 	 (add-keyvalue-to-thing-quality! new-keyvalue changed-thing changed-quality))
        new-keyvalues))
+#+end_src
+*** Remove key from thing quality
+#+name: remove-key-from-thing-quality!-procedure
+#+begin_src racket
 (define (remove-key-from-thing-quality! removed-key changed-thing changed-quality)
   (hash-remove! (thing-quality changed-thing changed-quality) removed-key))
 
-(define (thing-procedure queried-universe queried-procedure)
-  (cond [(universe-has-procedure? queried-universe queried-procedure)
-	 (hash-ref (thing-procedures queried-universe) queried-procedure)]
-	[else
-	 (log-warning "Tried to use procedure ~a from universe ~a, but it doesn't exist."
-		      queried-procedure
-		      (universe-name queried-universe))]))
+#+end_src
+** Working with groups of things
+*** List thing names
+#+name: list-thing-names-procedure
+#+begin_src racket
 
 (define (list-thing-names things)
   (oxfordize-list
@@ -299,6 +375,11 @@
     (λ (this-thing)
       (thing-name this-thing))
     things)))
+#+end_src
+** Engine
+*** Make universe logger
+#+name: make-universe-logger-procedure
+#+begin_src racket
 (define (make-universe-logger logging-universe [loglevel 'info])
   (define universe-log
     (make-logger ;(string->symbol (universe-name logging-universe))
@@ -306,6 +387,10 @@
   (define universe-log-receiver
     (make-log-receiver universe-log loglevel))
   (cons universe-log universe-log-receiver))
+#+end_src
+*** Run universe logger
+#+name: run-universe-logger-procedure
+#+begin_src racket
 (define (run-universe-logger universe-logger)
   (let ([universe-log (car universe-logger)]
 	[universe-log-receiver (cdr universe-logger)])
@@ -325,10 +410,18 @@
 			[else
 			 (printf "\"~a\"\n" log-string)]))
 		(log-loop))))))
+#+end_src
+*** Create universe
+#+name: create-universe-procedure
+#+begin_src racket
 
 (define (create-universe [name "qtVerse"] [events '()])
   (log-info "Making a new universe named ~a" name)
   (universe name 0 events (list) (make-hash)))
+#+end_src
+*** Tick universe
+#+name: tick-universe-procedure
+#+begin_src racket
 (define (tick-universe ticked-universe)
   (increment-universe-tick-count! ticked-universe)
   (log-debug "Universe ~a is beginning its tick, count #~a" (universe-name ticked-universe) (universe-tick-count ticked-universe))
@@ -345,6 +438,10 @@
 	(loop))))
   (log-debug "Universe ~a has ended its tick, count #~a" (universe-name ticked-universe) (universe-tick-count ticked-universe))
   ticked-universe)
+#+end_src
+*** Run universe
+#+name: run-universe-procedure
+#+begin_src racket
 (define (run-universe running-universe [tick-rate 0.2])
   (thread
    (λ () (let loop ()
@@ -352,6 +449,10 @@
 	   (sleep tick-rate)
 	   (loop)))))
 
+#+end_src
+*** Create thing
+#+name: create-thing-procedure
+#+begin_src racket
 (define (create-thing [name "thing"] [chosen-universe #f]
 		    #:grammar [grammar #f] #:qualities [qualities #f]
 		    #:procedures [procedures #f])
@@ -371,6 +472,10 @@
     (when chosen-universe
       (add-thing-to-universe-things! created-thing chosen-universe))
     created-thing))
+#+end_src
+*** Create thing creator for universe
+#+name: create-thing-creator-for-universe-procedure
+#+begin_src racket
 
 (define (create-thing-creator-for-universe target-universe)
   (λ ([name "thing"] #:grammar [grammar #f] #:qualities [qualities #f]
@@ -378,3 +483,87 @@
     (create-thing name target-universe
 		  #:grammar grammar #:qualities qualities
 		  #:procedures procedures)))
+#+end_src
+* MUDs
+* Tests
+* Files
+** qtmud.rkt
+#+name: qtmud.rkt
+#+begin_src racket :noweb yes :tangle ./qtmud.rkt
+  #lang racket
+
+  (require racket/serialize)
+
+  (require uuid)
+
+  (provide (struct-out universe)
+	   (struct-out thing)
+	   deserialize-file
+	   oxfordize-list
+	   join-list-of-strings-and-symbols-as-symbol
+	   increment-universe-tick-count!
+	   add-event-to-universe-schedule!
+	   add-thing-to-universe-things!
+	   universe-has-procedure?
+	   universe-procedure
+	   set-universe-procedure!
+	   add-procedures-to-universe!
+	   thing-has-universe?
+	   thing-has-quality?
+	   thing-quality
+	   set-thing-quality!
+	   add-string-to-thing-quality!
+	   add-element-to-thing-quality!
+	   add-elements-to-thing-quality!
+	   remove-element-from-thing-quality!
+	   add-keyvalue-to-thing-quality!
+	   add-keyvalues-to-thing-quality!
+	   remove-key-from-thing-quality!
+	   thing-has-procedure?
+	   thing-procedure
+	   list-thing-names
+	   make-universe-logger
+	   run-universe-logger
+	   create-universe
+	   tick-universe
+	   run-universe
+	   create-thing
+	   create-thing-creator-for-universe)
+
+  <<deserialize-file-procedure>>
+  <<replace-symbols-in-list-with-strings-procedure>>
+  <<oxfordize-list-procedure>>
+  <<join-list-of-strings-and-symbols-as-symbol-procedure>>
+
+  <<universe-struct>>
+  <<increment-universe-tick-count!-procedure>>
+  <<add-event-to-universe-schedule!-procedure>>
+  <<add-thing-to-universe-things!-procedure>>
+  <<universe-has-procedure?-procedure>>
+  <<universe-procedure-procedure>>
+  <<set-universe-procedure!-procedure>>
+  <<add-procedures-to-universe!-procedure>>
+
+  <<thing-struct>>
+  <<thing-has-procedure?-procedure>>
+  <<thing-has-quality?-procedure>>
+  <<thing-has-universe?-procedure>>
+  <<thing-quality-procedure>>
+  <<set-thing-quality!-procedure>>
+  <<add-string-to-thing-quality!-procedure>>
+  <<add-element-to-thing-quality!-procedure>>
+  <<add-elements-to-thing-quality!-procedure>>
+  <<remove-element-from-thing-quality!-procedure>>
+  <<add-keyvalue-to-thing-quality!-procedure>>
+  <<add-keyvalues-to-thing-quality!-procedure>>
+  <<remove-key-from-thing-quality!-procedure>>
+  <<thing-procedure-procedure>>
+  <<list-thing-names-procedure>>
+  <<make-universe-logger-procedure>>
+  <<run-universe-logger-procedure>>
+  <<create-universe-procedure>>
+  <<tick-universe-procedure>>
+  <<run-universe-procedure>>
+  <<create-thing-procedure>>
+  <<create-thing-creator-for-universe-procedure>>
+#+end_src
