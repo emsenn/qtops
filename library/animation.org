@@ -1,0 +1,103 @@
+#+title: Animation
+* Procedures
+** Animation procedures
+** Animation for MUDSocket procedures
+*** Make commands for MUDSocket Parser
+**** Make look command
+#+name: make-look-mudsocket-command-for-thing-procedur
+#+begin_src racket
+(define (make-look-mudsocket-command-for-thing commanding-thing)
+  (λ (command-arguments)
+    (cond [(hash-empty? command-arguments)
+	   (cond [(thing-has-quality? commanding-thing 'container)
+		  (let ([commanding-thing-container
+			 (thing-quality commanding-thing 'container)])
+		    (add-string-to-thing-quality!
+		     (format "[    ~a    ]~a~a"
+			     (thing-name commanding-thing-container)
+			     (cond [(thing-has-quality? commanding-thing-container
+							'area-description)
+				    (format "\n  ~a"
+					    (thing-quality
+					     commanding-thing-container
+					     'area-description))]
+				   [else ""])
+			     (cond [(thing-has-quality? commanding-thing-container
+							'area-exits)
+				    (format "\n  Area exits: ~a"
+					    (oxfordize-list
+					     (hash-keys (thing-quality
+							 commanding-thing-container
+							 'area-exits))))]
+				   [else ""]))
+		     commanding-thing 'mudsocket-output-buffer))]
+		 [else
+		  (add-string-to-thing-quality!
+		   "You look around, but you aren't anyplace."
+		   commanding-thing 'mudsocket-output-buffer)])]
+	  [(hash-has-key? command-arguments "container")
+	   (add-string-to-thing-quality!
+	    "Looking inside things doesn't work yet, sorry."
+	    commanding-thing 'mudsocket-output-buffer)]
+	  [(hash-has-key? command-arguments 'line)
+	   (add-string-to-thing-quality!
+	    "Looking at things doesn't work yet, sorry."
+	    commanding-thing 'mudsocket-output-buffer)])))
+
+#+end_src
+**** Make move command
+#+name: make-move-mudsocket-command-for-thing-procedure
+#+begin_src racket
+  (define (make-move-mudsocket-command-for-thing commanding-thing)
+    (λ (command-arguments)
+      (let* ([commanding-thing-container (thing-quality commanding-thing
+							       'container)]
+	     [commanding-thing-container-area-exits
+	      (thing-quality commanding-thing-container 'area-exits)])
+	(cond [(hash-has-key? command-arguments 'line)
+	       (let ([command-argument-line (hash-ref command-arguments 'line)])
+		 (cond [(hash-has-key? commanding-thing-container-area-exits
+				       command-argument-line)
+			(let ([destination-area
+			       (hash-ref commanding-thing-container-area-exits
+					 command-argument-line)])
+			  (log-warning "BOOOOING ~a" destination-area)
+			  (remove-element-from-thing-quality!
+			   commanding-thing
+			   commanding-thing-container
+			   'contents)
+			  (add-element-to-thing-quality!
+			   commanding-thing
+			   destination-area
+			   'contents)
+			  (add-string-to-thing-quality!
+			   (format "You move; your location is now ~a."
+				   (thing-name destination-area))
+			   commanding-thing 'mudsocket-output-buffer))]
+		       [else
+			(add-string-to-thing-quality!
+			 (format "You failed to move: ~a is not a valid exit."
+				 command-argument-line)
+			 commanding-thing 'mudsocket-output-buffer)]))]
+	      [else
+	       (add-string-to-thing-quality!
+		"You must use this command with an exit, try to \"look\" for one."
+		commanding-thing 'mudsocket-output-buffer)]))))
+#+end_src
+** Thing and universe procedures
+*** List animation procedures
+* Complete Files
+** animation-for-mudsocket.rkt
+#+name: animation-for-mudsocket.rkt
+#+begin_src racket
+#lang racket
+
+(require "../qtmud.rkt")
+
+(provide make-look-mudsocket-command-for-thing
+	 make-move-mudsocket-command-for-thing)
+
+<<make-look-mudsocket-command-for-thing-procedure>>
+<<make-move-mudsocket-command-for-thing-procedure>>
+
+#+end_src

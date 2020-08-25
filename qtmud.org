@@ -7,61 +7,95 @@ What follows is the software's source code, including tests and demonstrations. 
 Code is divided into the following sections:
 #+toc: headlines 2 local
 * Engine
+** Logging & Error Handling
 ** Utilities
+*** §
+#+name: §-procedure
+#+begin_src racket
+(define (§ . s) (string-join s ""))
+#+end_src
 *** Deserialize file
 #+name: deserialize-file-procedure
 #+begin_src racket
-(define (deserialize-file save-file)
-  (when (file-exists? save-file)
-    (log-debug "Deserializing file ~a" save-file)
-    (with-handlers
-      ([exn:fail:filesystem:errno?
-	(λ (E)
-	  (log-warning "Failed to deserialize file: ~a" E))])
-      (with-input-from-file save-file
-	(λ () (deserialize (read)))))))
+(define (deserialize-file serialized-file)
+              (with-input-from-file serialized-file
+                (λ () (deserialize (read)))))
 #+end_src
 *** Replace symbols in list with strings
-#+name: replace-symbols-in-list-with-strings-procedure
+#+name: symbols->strings-procedure
 #+begin_src racket
-(define (replace-symbols-in-list-with-strings mixed-list)
-  (map (λ (list-element)
-	   (cond [(string? list-element) list-element]
-		 [(symbol? list-element)
-		  (symbol->string list-element)]
-		 [else
-		  (log-warning "While replacing symbols with strings in the following list, came across ~a which is neither. Leaving it unchanged. Provided list: ~a"
-			       list-element
-			       mixed-list)
-		  list-element]))
-       mixed-list))
+(define (symbols->strings mixed-list)
+              (map (λ (element)
+                     (cond [(symbol? element)
+                            (symbol->string element)]
+                           [else element]))
+                   mixed-list))
 #+end_src
 *** Oxfordize list
 #+name: oxfordize-list-procedure
 #+begin_src racket
-(define (oxfordize-list strings)
-  (set! strings (replace-symbols-in-list-with-strings strings))
-  (cond
-    [(null? strings)
-     (log-warning "Tried to oxfordize an empty list.")]
-    [(null? (cdr strings))
-     (car strings)]
-    [(null? (cddr strings))
-     (string-join strings " and ")]
-    [else
-     (string-join strings ", "
-                  #:before-first ""
-                  #:before-last ", and ")]))
+  (define (oxfordize-list string-list)
+		(cond [(null? string-list)
+		       (raise-argument-error 'oxfordize-list
+					     "listof string?"
+					     string-list)]
+		      [(null? (cdr string-list))
+		       (car string-list)]
+		      [(null? (cddr string-list))
+		       (string-join string-list " and ")]
+		      [else
+		       (string-join string-list ", "
+				    #:before-first ""
+				    #:before-last ", and ")]))
 #+end_src
 *** Join list of strings and symbols as symbol
-#+name: join-list-of-strings-and-symbols-as-symbol-procedure
+#+name: join-strings-and-symbols-as-symbol-procedure
 #+begin_src racket
-  (define (join-list-of-strings-and-symbols-as-symbol
-	   unjoined-list [string-separator ""])
+  (define (join-strings-and-symbols-as-symbol unjoined-list
+					     [string-separator ""])
 	   (string->symbol
-	   (string-join
-	   (replace-symbols-in-list-with-strings unjoined-list)
-	   string-separator)))
+	    (string-join
+	     (symbols->strings unjoined-list)
+	     string-separator)))
+#+end_src
+*** Generate simple ID
+#+name: generate-simple-id-procedure
+#+begin_src racket
+  (define (generate-simple-id)
+    (substring (uuid-string) 0 8))
+#+end_src
+*** Make qtMUD logger
+#+name: make-qtmud-logger-procedure
+#+begin_src racket
+(define (make-qtmud-logger [loglevel 'info])
+  (define qtmud-log
+    (make-logger 'qtMUD))
+  (define qtmud-log-receiver
+    (make-log-receiver qtmud-log loglevel))
+  (cons qtmud-log qtmud-log-receiver))
+#+end_src
+*** Run qtMUD logger
+#+name: run-qtmud-logger-procedure
+#+begin_src racket
+(define (run-qtmud-logger qtmud-logger)
+  (let ([qtmud-log (car qtmud-logger)]
+	[qtmud-log-receiver (cdr qtmud-logger)])
+    (current-logger qtmud-log)
+    (thread (λ ()
+	      (let log-loop ()
+		(define log-vector (sync qtmud-log-receiver))
+		(let ([log-level (vector-ref log-vector 0)]
+		      [log-string (substring
+				   (vector-ref log-vector 1)
+				   7
+				   (length (string->list
+					    (vector-ref log-vector 1))))])
+		  (cond[ (eq? log-level 'debug)
+			 (display (format ">>> \"~a\"\n"
+				 log-string))]
+			[else
+			 (display (format "~a\n" log-string))]))
+		(log-loop))))))
 #+end_src
 ** Creating & changing universes
 #+name: universe-struct
@@ -83,11 +117,22 @@ Code is divided into the following sections:
 *** Add event to universe schedule
 #+name: add-event-to-universe-schedule!-procedure
 #+begin_src racket
-(define (add-event-to-universe-schedule! new-event changed-universe)
-  (cond [(procedure? new-event)
-	 (set-universe-schedule! changed-universe (append (universe-schedule changed-universe) (list new-event)))]
-	[else
-	 (log-warning "Tried to schedule non-procedure as event: ~a" new-event)]))
+  (define (add-event-to-universe-schedule! new-event changed-universe)
+    (cond [(procedure? new-event)
+	   (cond [(universe? changed-universe)
+		  (define current-schedule (universe-schedule changed-universe))
+		  (set-universe-schedule! changed-universe
+					  (append
+					   current-schedule
+					   (list new-event)))]
+		 [else
+		  (raise-argument-error 'add-event-to-universe-schedule!
+					"universe?"
+					changed-universe)])]
+	  [else
+	   (raise-argument-error 'add-event-to-universe-schedule!
+				 "procedure?"
+				 new-event)]))
 #+end_src
 *** Add thing to universe things
 #+name: add-thing-to-universe-things!-procedure
@@ -130,9 +175,16 @@ Code is divided into the following sections:
 	  [target-universe-name (universe-name target-universe)]
 	  [target-universe-procedures (universe-procedures target-universe)])
       (cond [(> length-of-procedures-list 0)
-	     (log-info "Adding ~a new procedures to ~a: ~a"
-		       length-of-procedures-list target-universe-name
-		       (oxfordize-list procedures-list))
+	     (log-info "Adding ~a new procedure~a to ~a:\n  ~a"
+		       length-of-procedures-list
+		       target-universe-name
+		       (cond [(> length-of-procedures-list 1) "s "]
+			     [else " "])
+		       (string-join
+			(map (λ (p)
+			       (symbol->string (car p)))
+			     procedures-list)
+				    "\n  "))
 	     (map (λ (added-procedure)
 		    (set-universe-procedure! target-universe
 					     (car added-procedure)
@@ -169,7 +221,7 @@ Code is divided into the following sections:
     (log-debug "Checking if ~a has ~a quality."
 	     queried-thing-name queried-quality)
     (let ([thing-has-quality?-procedure-key
-	   (join-list-of-strings-and-symbols-as-symbol
+	   (join-strings-and-symbols-as-symbol
 	    (list "thing-has-" queried-quality "?"))])
     (cond [(thing-has-procedure? queried-thing thing-has-quality?-procedure-key)
 	   (log-debug "~a has a procedure for checking itself for ~a quality; using it."
@@ -209,7 +261,7 @@ Code is divided into the following sections:
   (log-debug "Checking the value of ~a's ~a quality."
 	     queried-thing-name queried-quality)
   (let ([thing-quality-procedure-key
-	 (join-list-of-strings-and-symbols-as-symbol
+	 (join-strings-and-symbols-as-symbol
 	  (list "thing-" queried-quality))])
     (cond [(thing-has-procedure? queried-thing thing-quality-procedure-key)
 	   (log-debug "~a has a procedure for checking the value of its own ~a quality: using it."
@@ -253,7 +305,7 @@ Code is divided into the following sections:
 		       (thing-universe changed-thing)]
 		      [else #f])]
 	       [set-thing-quality!-procedure-key
-		(join-list-of-strings-and-symbols-as-symbol
+		(join-strings-and-symbols-as-symbol
 		 (list "set-thing-" changed-quality "!"))])
 	   (log-debug "Setting ~a's ~a quality to ~a."
 		      changed-thing-name changed-quality new-value)
@@ -289,7 +341,7 @@ Code is divided into the following sections:
 		(thing-universe changed-thing)]
 	       [else #f])]
 	[procedure-key
-	 (join-list-of-strings-and-symbols-as-symbol
+	 (join-strings-and-symbols-as-symbol
 	  (list "add-string-to-thing-" changed-quality "!"))])
     (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) input-string)]
@@ -310,7 +362,7 @@ Code is divided into the following sections:
 #+name: add-element-to-thing-quality!-procedure
 #+begin_src racket
 (define (add-element-to-thing-quality! new-element changed-thing changed-quality)
-  (let ([procedure-key (join-list-of-strings-and-symbols-as-symbol
+  (let ([procedure-key (join-strings-and-symbols-as-symbol
 			(list "add-element-to-thing-" changed-quality "!"))])
     (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) new-element)]
@@ -414,10 +466,19 @@ Code is divided into the following sections:
 *** Create universe
 #+name: create-universe-procedure
 #+begin_src racket
-
-(define (create-universe [name "qtVerse"] [events '()])
-  (log-info "Making a new universe named ~a" name)
-  (universe name 0 events (list) (make-hash)))
+    (define (create-universe [name (§ "Universe-"
+				      (substring (generate-simple-id)
+						 0 3))]
+			     [events '()])
+      (cond [(string? name)
+	     (cond [(list? events)
+		    (log-info "Creating universe named ~a" name)
+		    (universe name 0 events (list) (make-hash))]
+		   [else
+		    (raise-argument-error 'create-universe
+					  "list?" events)])]
+	    [else (raise-argument-error 'create-universe
+					"string?" name)]))
 #+end_src
 *** Tick universe
 #+name: tick-universe-procedure
@@ -486,7 +547,86 @@ Code is divided into the following sections:
 #+end_src
 * MUDs
 * Tests
+  :PROPERTIES:
+  :header-args: :noweb yes :padline yes
+  :END:
+** Creating Universes
+#+name: creating-universes-test
+#+begin_src racket
+  (test-case
+      "Return of create-universe without arguments is a universe."
+    (check-pred universe?
+		(create-universe)))
+
+  (test-case
+      (§ "Return of create-universe with single string argument "
+	 "is universe.")
+    (check-pred universe?
+		(create-universe "Testverse-One")))
+
+  (test-case
+      (§ "Return of create-universe with two arguments, first "
+	 "string and second list, is universe.")
+    (check-pred universe?
+		(create-universe "Testverse-Two" '())))
+
+  (test-case
+      (§ "Return of create-universe with non-string first "
+	 "argument is contract failure.")
+    (check-exn exn:fail:contract?
+	       (λ () (create-universe 'Failverse))))
+
+  (test-case
+      (§ "Return of create-universe with non-list second "
+	 "argument is contract failure.")
+    (check-exn exn:fail:contract?
+	       (λ () (create-universe "Testverse-Null" 'fail))))
+#+end_src
+** Renaming a Universe
 * Files
+  :PROPERTIES:
+  :header-args: :noweb yes :padline yes
+  :END:
+** test-qtmud.rkt
+#+name: test-qtmud.rkt
+#+begin_src racket :tangle ./test-qtmud.rkt
+  #lang racket
+
+  (require rackunit
+	   "qtmud.rkt")
+
+  (provide qtmud-tests)
+
+(define qtmud-tests
+  (test-suite
+   "Tests for the qtMUD Racket module."
+
+<<creating-universes-test>>
+
+))
+#+end_src
+** test-everything.rkt
+#+name: test-everything.rkt
+#+begin_src racket :tangle ./test-everything.rkt
+    #lang racket
+
+    (require rackunit
+	     rackunit/text-ui
+	     "qtmud.rkt"
+	     "test-qtmud.rkt"
+	     "library/test-animation.rkt")
+
+    (run-qtmud-logger (make-qtmud-logger))
+
+    (map
+     (λ (suite)
+       (display (format "Running ~a\n  "
+		      (rackunit-test-suite-name suite)))
+       (run-tests suite))
+     (list
+      qtmud-tests
+      animation-tests))
+#+end_src
 ** qtmud.rkt
 #+name: qtmud.rkt
 #+begin_src racket :noweb yes :tangle ./qtmud.rkt
@@ -498,9 +638,13 @@ Code is divided into the following sections:
 
   (provide (struct-out universe)
 	   (struct-out thing)
+	   §
 	   deserialize-file
 	   oxfordize-list
-	   join-list-of-strings-and-symbols-as-symbol
+	   join-strings-and-symbols-as-symbol
+	   make-qtmud-logger
+	   run-qtmud-logger
+           generate-simple-id
 	   increment-universe-tick-count!
 	   add-event-to-universe-schedule!
 	   add-thing-to-universe-things!
@@ -530,10 +674,14 @@ Code is divided into the following sections:
 	   create-thing
 	   create-thing-creator-for-universe)
 
+  <<§-procedure>>
   <<deserialize-file-procedure>>
-  <<replace-symbols-in-list-with-strings-procedure>>
+  <<symbols->strings-procedure>>
   <<oxfordize-list-procedure>>
-  <<join-list-of-strings-and-symbols-as-symbol-procedure>>
+  <<join-strings-and-symbols-as-symbol-procedure>>
+  <<make-qtmud-logger-procedure>>
+  <<run-qtmud-logger-procedure>>
+  <<generate-simple-id-procedure>>
 
   <<universe-struct>>
   <<increment-universe-tick-count!-procedure>>

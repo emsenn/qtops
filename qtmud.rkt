@@ -6,9 +6,13 @@
 
 (provide (struct-out universe)
 	 (struct-out thing)
+	 §
 	 deserialize-file
 	 oxfordize-list
-	 join-list-of-strings-and-symbols-as-symbol
+	 join-strings-and-symbols-as-symbol
+	 make-qtmud-logger
+	 run-qtmud-logger
+         generate-simple-id
 	 increment-universe-tick-count!
 	 add-event-to-universe-schedule!
 	 add-thing-to-universe-things!
@@ -38,45 +42,62 @@
 	 create-thing
 	 create-thing-creator-for-universe)
 
-(define (deserialize-file save-file)
-  (when (file-exists? save-file)
-    (log-debug "Deserializing file ~a" save-file)
-    (with-handlers
-      ([exn:fail:filesystem:errno?
-	(λ (E)
-	  (log-warning "Failed to deserialize file: ~a" E))])
-      (with-input-from-file save-file
-	(λ () (deserialize (read)))))))
-(define (replace-symbols-in-list-with-strings mixed-list)
-  (map (λ (list-element)
-	   (cond [(string? list-element) list-element]
-		 [(symbol? list-element)
-		  (symbol->string list-element)]
-		 [else
-		  (log-warning "While replacing symbols with strings in the following list, came across ~a which is neither. Leaving it unchanged. Provided list: ~a"
-			       list-element
-			       mixed-list)
-		  list-element]))
-       mixed-list))
-(define (oxfordize-list strings)
-  (set! strings (replace-symbols-in-list-with-strings strings))
-  (cond
-    [(null? strings)
-     (log-warning "Tried to oxfordize an empty list.")]
-    [(null? (cdr strings))
-     (car strings)]
-    [(null? (cddr strings))
-     (string-join strings " and ")]
-    [else
-     (string-join strings ", "
-                  #:before-first ""
-                  #:before-last ", and ")]))
-(define (join-list-of-strings-and-symbols-as-symbol
-	 unjoined-list [string-separator ""])
+(define (§ . s) (string-join s ""))
+(define (deserialize-file serialized-file)
+              (with-input-from-file serialized-file
+                (λ () (deserialize (read)))))
+(define (symbols->strings mixed-list)
+              (map (λ (element)
+                     (cond [(symbol? element)
+                            (symbol->string element)]
+                           [else element]))
+                   mixed-list))
+(define (oxfordize-list string-list)
+	      (cond [(null? string-list)
+		     (raise-argument-error 'oxfordize-list
+					   "listof string?"
+					   string-list)]
+		    [(null? (cdr string-list))
+		     (car string-list)]
+		    [(null? (cddr string-list))
+		     (string-join string-list " and ")]
+		    [else
+		     (string-join string-list ", "
+				  #:before-first ""
+				  #:before-last ", and ")]))
+(define (join-strings-and-symbols-as-symbol unjoined-list
+					   [string-separator ""])
 	 (string->symbol
-	 (string-join
-	 (replace-symbols-in-list-with-strings unjoined-list)
-	 string-separator)))
+	  (string-join
+	   (symbols->strings unjoined-list)
+	   string-separator)))
+(define (make-qtmud-logger [loglevel 'info])
+  (define qtmud-log
+    (make-logger 'qtMUD))
+  (define qtmud-log-receiver
+    (make-log-receiver qtmud-log loglevel))
+  (cons qtmud-log qtmud-log-receiver))
+(define (run-qtmud-logger qtmud-logger)
+  (let ([qtmud-log (car qtmud-logger)]
+	[qtmud-log-receiver (cdr qtmud-logger)])
+    (current-logger qtmud-log)
+    (thread (λ ()
+	      (let log-loop ()
+		(define log-vector (sync qtmud-log-receiver))
+		(let ([log-level (vector-ref log-vector 0)]
+		      [log-string (substring
+				   (vector-ref log-vector 1)
+				   7
+				   (length (string->list
+					    (vector-ref log-vector 1))))])
+		  (cond[ (eq? log-level 'debug)
+			 (display (format ">>> \"~a\"\n"
+				 log-string))]
+			[else
+			 (display (format "~a\n" log-string))]))
+		(log-loop))))))
+(define (generate-simple-id)
+  (substring (uuid-string) 0 8))
 
 (struct universe
   (name tick-count schedule things procedures)
@@ -89,9 +110,20 @@
       addition)))
 (define (add-event-to-universe-schedule! new-event changed-universe)
   (cond [(procedure? new-event)
-	 (set-universe-schedule! changed-universe (append (universe-schedule changed-universe) (list new-event)))]
+	 (cond [(universe? changed-universe)
+		(define current-schedule (universe-schedule changed-universe))
+		(set-universe-schedule! changed-universe
+					(append
+					 current-schedule
+					 (list new-event)))]
+	       [else
+		(raise-argument-error 'add-event-to-universe-schedule!
+				      "universe?"
+				      changed-universe)])]
 	[else
-	 (log-warning "Tried to schedule non-procedure as event: ~a" new-event)]))
+	 (raise-argument-error 'add-event-to-universe-schedule!
+			       "procedure?"
+			       new-event)]))
 (define (add-thing-to-universe-things! new-thing changed-universe)
   (set-universe-things! changed-universe (append (universe-things changed-universe) (list new-thing))))
 (define (universe-has-procedure? queried-universe queried-procedure)
@@ -114,9 +146,16 @@
 	[target-universe-name (universe-name target-universe)]
 	[target-universe-procedures (universe-procedures target-universe)])
     (cond [(> length-of-procedures-list 0)
-	   (log-info "Adding ~a new procedures to ~a: ~a"
-		     length-of-procedures-list target-universe-name
-		     (oxfordize-list procedures-list))
+	   (log-info "Adding ~a new procedure~a to ~a:\n  ~a"
+		     length-of-procedures-list
+		     target-universe-name
+		     (cond [(> length-of-procedures-list 1) "s "]
+			   [else " "])
+		     (string-join
+		      (map (λ (p)
+			     (symbol->string (car p)))
+			   procedures-list)
+				  "\n  "))
 	   (map (λ (added-procedure)
 		  (set-universe-procedure! target-universe
 					   (car added-procedure)
@@ -142,7 +181,7 @@
     (log-debug "Checking if ~a has ~a quality."
 	     queried-thing-name queried-quality)
     (let ([thing-has-quality?-procedure-key
-	   (join-list-of-strings-and-symbols-as-symbol
+	   (join-strings-and-symbols-as-symbol
 	    (list "thing-has-" queried-quality "?"))])
     (cond [(thing-has-procedure? queried-thing thing-has-quality?-procedure-key)
 	   (log-debug "~a has a procedure for checking itself for ~a quality; using it."
@@ -174,7 +213,7 @@
   (log-debug "Checking the value of ~a's ~a quality."
 	     queried-thing-name queried-quality)
   (let ([thing-quality-procedure-key
-	 (join-list-of-strings-and-symbols-as-symbol
+	 (join-strings-and-symbols-as-symbol
 	  (list "thing-" queried-quality))])
     (cond [(thing-has-procedure? queried-thing thing-quality-procedure-key)
 	   (log-debug "~a has a procedure for checking the value of its own ~a quality: using it."
@@ -203,7 +242,7 @@
 		       (thing-universe changed-thing)]
 		      [else #f])]
 	       [set-thing-quality!-procedure-key
-		(join-list-of-strings-and-symbols-as-symbol
+		(join-strings-and-symbols-as-symbol
 		 (list "set-thing-" changed-quality "!"))])
 	   (log-debug "Setting ~a's ~a quality to ~a."
 		      changed-thing-name changed-quality new-value)
@@ -235,7 +274,7 @@
 		(thing-universe changed-thing)]
 	       [else #f])]
 	[procedure-key
-	 (join-list-of-strings-and-symbols-as-symbol
+	 (join-strings-and-symbols-as-symbol
 	  (list "add-string-to-thing-" changed-quality "!"))])
     (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) input-string)]
@@ -252,7 +291,7 @@
 				 (thing-quality changed-thing changed-quality)
 				 input-string) ""))])))
 (define (add-element-to-thing-quality! new-element changed-thing changed-quality)
-  (let ([procedure-key (join-list-of-strings-and-symbols-as-symbol
+  (let ([procedure-key (join-strings-and-symbols-as-symbol
 			(list "add-element-to-thing-" changed-quality "!"))])
     (cond [(thing-has-procedure? changed-thing procedure-key)
 	   ((thing-procedure changed-thing procedure-key) new-element)]
@@ -325,10 +364,19 @@
 			[else
 			 (printf "\"~a\"\n" log-string)]))
 		(log-loop))))))
-
-(define (create-universe [name "qtVerse"] [events '()])
-  (log-info "Making a new universe named ~a" name)
-  (universe name 0 events (list) (make-hash)))
+(define (create-universe [name (§ "Universe-"
+				  (substring (generate-simple-id)
+					     0 3))]
+			 [events '()])
+  (cond [(string? name)
+	 (cond [(list? events)
+		(log-info "Creating universe named ~a" name)
+		(universe name 0 events (list) (make-hash))]
+	       [else
+		(raise-argument-error 'create-universe
+				      "list?" events)])]
+	[else (raise-argument-error 'create-universe
+				    "string?" name)]))
 (define (tick-universe ticked-universe)
   (increment-universe-tick-count! ticked-universe)
   (log-debug "Universe ~a is beginning its tick, count #~a" (universe-name ticked-universe) (universe-tick-count ticked-universe))

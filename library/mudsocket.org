@@ -1,13 +1,18 @@
-#lang racket
-
-(require uuid)
-
-(require "../qtmud.rkt")
-
-(provide make-mudsocket-tick-event-for-universe
-	 make-mudsocket-parser-for-thing
-	 make-mudsocket-sender-for-thing)
-
+#+title: MUDSocket
+* Procedures
+** MUDSocket Commands
+#+name: make-mudsocket-commands-for-thing-procedure
+#+begin_src racket
+(define (make-mudsocket-commands-for-thing target-thing)
+  (list
+   (cons "commands" (make-commands-mudsocket-command-for-thing target-thing))
+   (cons "help" (make-help-mudsocket-command-for-thing target-thing))
+   (cons "quit" (make-quit-mudsocket-command-for-thing target-thing))
+   (cons "who" (make-who-mudsocket-command-for-thing target-thing))))
+#+end_src
+*** Commands
+#+name: make-commands-mudsocket-command-for-thing-procedure
+#+begin_src racket
 (define (make-commands-mudsocket-command-for-thing
 	 commanding-thing)
   (λ (args)
@@ -17,7 +22,10 @@
       (oxfordize-list (hash-keys (thing-quality commanding-thing
 						'mudsocket-commands))))
      commanding-thing 'mudsocket-output-buffer)))
-
+#+end_src
+*** Help
+#+name: make-help-mudsocket-command-for-thing-procedure
+#+begin_src racket
 (define (make-help-mudsocket-command-for-thing commanding-thing)
   (λ (command-arguments)
     (let ([commanding-thing-universe (thing-universe commanding-thing)])
@@ -33,7 +41,10 @@
 	      (universe-name commanding-thing-universe)
 	      (thing-name commanding-thing))])
       commanding-thing 'mudsocket-output-buffer))))
-
+#+end_src
+*** Quit
+#+name: make-quit-mudsocket-command-for-thing-procedure
+#+begin_src racket
 (define (make-quit-mudsocket-command-for-thing
 	 commanding-thing)
   (λ (args)
@@ -43,7 +54,10 @@
      commanding-thing 'mudsocket-output-buffer)
     ((thing-quality commanding-thing 'mudsocket-sender))
     ((universe-procedure (thing-universe commanding-thing) 'quit-mudsocket-connection) commanding-thing)))
-
+#+end_src
+*** Who
+#+name: make-who-mudsocket-command-for-thing-procedure
+#+begin_src racket
 (define (make-who-mudsocket-command-for-thing
 	 commanding-thing)
   (λ (args)
@@ -53,14 +67,10 @@
       (length ((universe-procedure (thing-universe commanding-thing)
 				   'list-mudsocket-current-connections))))
      commanding-thing 'mudsocket-output-buffer)))
-
-(define (make-mudsocket-commands-for-thing target-thing)
-  (list
-   (cons "commands" (make-commands-mudsocket-command-for-thing target-thing))
-   (cons "help" (make-help-mudsocket-command-for-thing target-thing))
-   (cons "quit" (make-quit-mudsocket-command-for-thing target-thing))
-   (cons "who" (make-who-mudsocket-command-for-thing target-thing))))
-
+#+end_src
+** MUDSocket Parser
+#+name: make-mudsocket-parser-for-thing-procedure
+#+begin_src racket
 (define (make-mudsocket-parser-for-thing parsing-thing)
   (define (parse-args args)
     (let ([results (make-hash)])
@@ -99,7 +109,10 @@
 	(when (> (string-length response) 0)
 	  (add-string-to-thing-quality! response parsing-thing
 				       'mudsocket-output-buffer))))))
-
+#+end_src
+** MUDSocket Sender
+#+name: make-mudsocket-sender-for-thing-procedure
+#+begin_src racket
 (define (make-mudsocket-sender-for-thing receiving-thing)
   (λ ()
     (let ([receiving-thing-name (thing-name receiving-thing)]
@@ -126,7 +139,10 @@
 	   receiving-thing-mudsocket-out)
 	  (flush-output receiving-thing-mudsocket-out)
 	  (set-thing-quality! receiving-thing 'mudsocket-output-buffer "")))))
-
+#+end_src
+** Change thing into MUDSocket client
+#+name: change-thing-into-mudsocket-client!-procedure
+#+begin_src racket
 (define (change-thing-into-mudsocket-client! changed-thing
 					  in out ip port)
   (map (λ (quality-pair)
@@ -147,36 +163,11 @@
 	 (talker-channels . ("cq"))))
   (set-thing-name! changed-thing (string-join (list ip ":" (number->string port))
 					      "")))
+#+end_src
+** Make MUDSocket tick event
+#+name: make-mudsocket-tick-event-procedure
+#+begin_src racket
 
-(define (make-mudsocket-tick-event-for-universe target-universe [port 4242])
-  (log-debug "Making a MUDSocket tick event for ~a." (universe-name target-universe))
-  (define mudsocket-listener (tcp-listen port 5 #t))
-  (define current-connections '())
-  (define (disconnect-connection connected-thing)
-    (close-input-port (thing-quality connected-thing 'mudsocket-in))
-    (close-output-port (thing-quality connected-thing 'mudsocket-out))
-    (set! current-connections (remove connected-thing current-connections))
-    (log-info "MUDSocket disconnected connection from ~a:~a"
-	      (thing-quality connected-thing 'mudsocket-ip)
-	      (thing-quality connected-thing 'mudsocket-port)))
-  (define (tick-mudsocket-event ticked-universe)
-    (define (accept-new-connection)
-      (define-values (mudsocket-in mudsocket-out)
-	(tcp-accept mudsocket-listener))
-      (define-values (local-ip local-port remote-ip remote-port)
-	(tcp-addresses mudsocket-in #t))
-      (log-info "MUDSocket accepted a new connection from ~a:~a"
-		remote-ip remote-port)
-      (define connected-thing (create-thing "MUDSocket client" ticked-universe))
-      (change-thing-into-mudsocket-client! connected-thing
-					 mudsocket-in mudsocket-out
-					 remote-ip remote-port)
-      (log-debug "Changed ~a into a proper MUDsocket client."
-		 (thing-name connected-thing))
-      (set! current-connections (append (list connected-thing) current-connections))
-      (log-debug "Added ~a into the list of current connections."
-		 (thing-name connected-thing))
-      (when (universe-has-procedure? ticked-universe 'handle-mudsocket-connection)
 	((universe-procedure ticked-universe 'handle-mudsocket-connection)
 	 connected-thing))
       (add-string-to-thing-quality!
@@ -239,3 +230,19 @@
   (set-universe-procedure! target-universe 'quit-mudsocket-connection
 			   (λ (connected-thing) (disconnect-connection connected-thing)))
   tick-mudsocket-event)
+
+#+end_src
+* Complete Files
+** mudsocket.rkt
+#+name: mudsocket.rkt
+#+begin_src racket
+#lang racket
+
+(require uuid)
+
+(require "../qtmud.rkt")
+
+(provide make-mudsocket-tick-event-for-universe
+	 make-mudsocket-parser-for-thing
+	 make-mudsocket-sender-for-thing)
+#+end_src

@@ -1,0 +1,152 @@
+#+title: Containers
+#+description: Let things be inside other things and have things in them
+This part of the qtMUD library is for working with the /container/ and /contents/ qualities of a thing, which let a thing be "contained" in another thing and let a thing "contain" other things.
+#+begin_src racket
+  ;; oh look some blackberries
+  (define blackberries (create-thing "blackberries"))
+
+  ;; need someplace to put them
+  (define basket (create-thing "basket"))
+
+  ;; lets make them know about contains
+  (add-container-procedures-to-things!
+   (list basket blackberries))
+
+  ;; now lets put the blackberries into the basket!
+  (set-thing-quality! basket 'contents
+		      (list blackberries))
+
+  (thing-quality basket 'contents)
+  ;; -> '(blackberries)
+
+  (thing-quality blackberries 'container)
+  ;; -> basket
+#+end_src
+* Procedures
+  :PROPERTIES:
+  :header-args: :noweb yes :padline yes
+  :END:
+** Container procedures
+*** Add element to thing contents!
+#+name: add-element-to-thing-contents!-procedure
+#+begin_src racket
+(define (add-element-to-thing-contents! new-element changed-thing)
+  (cond [(thing? new-element)
+	 (log-debug "Adding ~a to ~a's contents."
+		    (thing-name new-element)
+		    (thing-name changed-thing))
+	 (when (thing-has-quality? new-element 'container)
+	   (remove-element-from-thing-quality! new-element
+					       (thing-quality new-element
+							      'container)
+					       'contents))
+	 (cond [(thing-has-quality? changed-thing 'contents)
+		(set-thing-quality! changed-thing 'contents
+				    (append (thing-quality changed-thing 'contents)
+					    (list new-element)))
+		(set-thing-quality! new-element 'container changed-thing #t)
+		#f]
+	       [else #f])]
+	[else
+	 (log-warning "Tried to add somthing to ~a's contents, but it wasn't a thing, it was: ~a"
+		      (thing-name changed-thing)
+		      new-element)]))
+#+end_src
+** Thing and universe procedures
+*** List container procedures
+#+name: list-container-procedures-declaration
+#+begin_src racket
+(define container-procedures
+  (list (cons 'add-element-to-thing-contents! add-element-to-thing-contents!)))
+#+end_src
+*** Add container procedures to a universe
+#+name: add-container-procedures-to-universe!-procedure
+#+begin_src racket
+(define (add-container-procedures-to-universe! target-universe)
+  (log-info "Adding container procedures to ~a."
+	    (universe-name target-universe))
+  (add-procedures-to-universe!
+target-universe))
+#+end_src
+*** Add container procedures to thing
+#+name: add-container-procedures-to-thing!-procedure
+#+begin_src racket
+(define (add-container-procedures-to-thing! target-thing)
+  (log-info "Adding container procedures to ~a."
+	    (thing-name target-thing))
+  (add-procedures-to-thing! container-procedures target-universe))
+#+end_src
+*** Add container procedures to things
+#+name: add-container-procedures-to-things!-procedure
+#+begin_src racket
+  (define (add-container-procedures-to-things! target-things)
+    (map (λ (target-thing)
+	   (add-procedures-to-thing!
+	    container-procedures target-thing))
+	 target-things))
+#+end_src
+* Tests
+  :PROPERTIES:
+  :header-args: :noweb yes :padline yes
+  :END:
+** Adding container procedures to a universe
+#+name: adding-container-procedures-to-a-universe-test
+#+begin_src racket
+  (test-case
+      (§ "A universe to which container procedures have been added has the "
+	 "`add-element-to-thing-contents!` procedure.")
+    (check-true ((λ ()
+		  (define testverse (create-universe))
+		  (add-container-procedures-to-universe! testverse)
+		  (universe-has-procedure? testverse
+					   'add-element-to-thing-contents!)))))
+#+end_src
+** Adding container procedures to a thing
+#+name: adding-container-procedures-to-a-thing-test
+#+begin_src racket
+  (test-case
+      (§ "A thing that has had container procedures added to it "
+	 "has the `add-element-to-thing-contents!` procedure.")
+    (check-true
+     ((λ () (define test-thing (create-thing))
+	 (add-container-procedures-to-thing! test-thing)
+	 (thing-has-procedure? test-thing
+			       'add-element-to-thing-contents!)))))
+#+end_src
+* Complete File
+  :PROPERTIES:
+  :header-args: :noweb yes :padline yes
+  :END:
+** containers.rkt
+#+name: containers.rkt
+#+begin_src racket :tangle containers.rkt
+#lang racket
+
+(require "../qtmud.rkt")
+
+(provide add-container-procedures-to-universe!)
+
+<<add-element-to-thing-contents!-procedure>>
+
+#+end_src
+** test-containers.rkt
+#+name: test-containers.rkt
+#+begin_src racket :tangle test-containers.rkt
+  #lang racket
+
+  (require rackunit
+	   "../qtmud.rkt"
+	   "container.rkt")
+
+  (provide container-tests)
+
+  (define container-tests
+    (test-suite
+     (§ "Tests for the Container qtMUD library component.")
+
+     <<adding-container-procedures-to-a-thing-test>>
+     <<adding-container-procedures-to-things-test>>
+     <<adding-container-procedures-to-a-universe-test>>
+
+     ))
+#+end_src
