@@ -1,8 +1,7 @@
 #lang racket
 
-(require racket/serialize)
-
-(require uuid)
+(require racket/serialize
+         uuid)
 
 (provide (struct-out universe)
 	 (struct-out thing)
@@ -41,6 +40,23 @@
 	 run-universe
 	 create-thing
 	 create-thing-creator-for-universe)
+
+(struct exn:qtmud:thing:quality:missing exn:fail ())
+
+(define (raise-thing-quality-missing-error trigger-procedure
+                                           missing-thing
+                                           missing-quality)
+  (raise (exn:qtmud:thing:quality:missing
+          (format "~a tried to use ~a's non-existent ~a quality."
+                  trigger-procedure
+                  missing-thing
+                  missing-quality)
+          (current-continuation-marks))))
+
+(module+ test
+  (require rackunit)
+  (void))
+
 
 (define (§ . s) (string-join s ""))
 (define (deserialize-file serialized-file)
@@ -234,39 +250,56 @@
 		  (hash-ref (thing-qualities queried-thing) queried-quality)]
 		 [else (log-error "~a doesn't have the ~a quality."
 			      queried-thing-name queried-quality)])])))
-(define (set-thing-quality! changed-thing changed-quality new-value [add-quality? #f])
-  (cond [(or add-quality? (thing-has-quality? changed-thing changed-quality))
-	 (let ([changed-thing-name (thing-name changed-thing)]
-	       [changed-thing-universe
-		(cond [(thing-has-universe? changed-thing)
-		       (thing-universe changed-thing)]
-		      [else #f])]
-	       [set-thing-quality!-procedure-key
-		(join-strings-and-symbols-as-symbol
-		 (list "set-thing-" changed-quality "!"))])
-	   (log-debug "Setting ~a's ~a quality to ~a."
-		      changed-thing-name changed-quality new-value)
-	   (cond [(thing-has-procedure? changed-thing set-thing-quality!-procedure-key)
-		  (log-debug "~a has a procedure for setting its own ~a quality: using it."
-			     changed-thing-name changed-quality)
-		  ((thing-procedure changed-thing set-thing-quality!-procedure-key)
-		   new-value)]
-		 [(and changed-thing-universe
-		       (universe-has-procedure? changed-thing-universe
-						set-thing-quality!-procedure-key))
-		  (log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
-			     changed-thing-name
-			     (universe-name changed-thing-universe)
-			     changed-thing-name changed-quality)
-		  ((universe-procedure changed-thing-universe
-				       set-thing-quality!-procedure-key)
-		   changed-thing new-value)]
-		 [else
-		  (let ([changed-thing-qualities (thing-qualities changed-thing)])
-		    (hash-set! changed-thing-qualities changed-quality new-value))]))]
+(define (symbol-replace changed-symbol start-symbol end-symbol)
+  (string->symbol
+   (string-replace (symbol->string changed-symbol)
+		   (symbol->string start-symbol)
+		   (symbol->string end-symbol))))
+
+(define (change-thing-quality! change-procedure
+			       changed-thing
+			       changed-quality
+			       new-value)
+  (cond [(thing? changed-thing)
+	 (cond [(or add-quality?
+		    (thing-has-quality? changed-thing changed-quality))
+		(define changed-thing-name (thing-name changed-thing))
+		(define changed-thing-universe
+		  (cond [(thing-has-universe? changed-thing)
+			 (thing-universe changed-thing)]
+			[else #f]))
+		(define change-procedure-key
+		  (symbol-replace change-procedure
+				  'quality
+				  changed-quality))
+		(cond [(thing-has-procedure? changed-thing
+					     change-procedure-key)
+		       ((thing-procedure changed-thing change-procedure-key)
+			new-value)]
+		      [(and changed-thing-universe
+			    (universe-has-procedure? changed-thing-universe
+						     change-procedure-key))
+		       ((universe-procedure changed-thing-universe
+					    change-procedure-key)
+			changed-thing
+			new-value)]
+		      [else
+		       (display "BING")])]
+	       [else
+		(raise
+		 (exn:qtmud:thing:quality:missing
+		  change-procedure
+		  changed-thing
+		  changed-quality))])]
 	[else
-	 (error "~a doesn't have the ~a quality."
-		(thing-name changed-thing) changed-quality)]))
+	 (raise-argument-error change-procedure
+			       "thing?" changed-thing)]))
+
+(define (set-thing-quality! changed-thing changed-quality new-value)
+  (change-thing-quality! 'set-thing-quality!
+			 changed-thing
+			 changed-quality
+			 new-value))
 (define (add-string-to-thing-quality! input-string changed-thing changed-quality)
   (let ([changed-thing-name (thing-name changed-thing)]
 	[changed-thing-universe

@@ -2,7 +2,8 @@
 
 (require "../qtmud.rkt")
 
-(provide add-container-procedures-to-universe!)
+(provide add-element-to-thing-contents!
+	 add-container-procedures-to-universe!)
 
 (define (add-element-to-thing-contents! new-element changed-thing)
   (cond [(thing? new-element)
@@ -25,3 +26,9 @@
 	 (log-warning "Tried to add somthing to ~a's contents, but it wasn't a thing, it was: ~a"
 		      (thing-name changed-thing)
 		      new-element)]))
+
+(define (add-container-procedures-to-universe! target-universe)
+  (log-info "Adding container procedures to ~a."
+	    (universe-name target-universe))
+  (add-procedures-to-universe!
+target-universe))

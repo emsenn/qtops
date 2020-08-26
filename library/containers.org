@@ -120,13 +120,16 @@ target-universe))
 ** containers.rkt
 #+name: containers.rkt
 #+begin_src racket :tangle containers.rkt
-#lang racket
+  #lang racket
 
-(require "../qtmud.rkt")
+  (require "../qtmud.rkt")
 
-(provide add-container-procedures-to-universe!)
+  (provide add-element-to-thing-contents!
+	   add-container-procedures-to-universe!)
 
-<<add-element-to-thing-contents!-procedure>>
+  <<add-element-to-thing-contents!-procedure>>
+
+  <<add-container-procedures-to-universe!-procedure>>
 
 #+end_src
 ** test-containers.rkt

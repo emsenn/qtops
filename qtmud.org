@@ -3,52 +3,77 @@
 qtMUD is a piece of software for running (traditionally) text-interface services, which are typically role-playing games.
 
 What follows is the software's source code, including tests and demonstrations. Please note this project is in early development.
-
-Code is divided into the following sections:
-#+toc: headlines 2 local
 * Engine
 ** Logging & Error Handling
+*** Exceptions
+**** Exception structs
+#+name: qtmud-exception-structs
+#+begin_src racket
+(struct exn:qtmud:thing:quality:missing exn:fail ())
+#+end_src
+**** Exception-raising procedures
+#+name: raise-thing-quality-missing-error-procedure
+#+begin_src racket
+  (define (raise-thing-quality-missing-error trigger-procedure
+					     missing-thing
+					     missing-quality)
+    (raise (exn:qtmud:thing:quality:missing
+	    (format "~a tried to change ~a's non-existent ~a quality."
+		    trigger-procedure
+		    missing-thing
+		    missing-quality)
+		    (current-continuation-marks))))
+#+end_src
 ** Utilities
 *** §
+Takes one or more strings and joins them together without a separator. Used to help format long strings in the codebase, since they're pretty common and can get real real long.
 #+name: §-procedure
 #+begin_src racket
-(define (§ . s) (string-join s ""))
+  (define (§ . s) (string-join s ""))
 #+end_src
 *** Deserialize file
+Takes a path and tries to return the deserialized contents of the file at that path.
 #+name: deserialize-file-procedure
 #+begin_src racket
-(define (deserialize-file serialized-file)
-              (with-input-from-file serialized-file
-                (λ () (deserialize (read)))))
+  (define (deserialize-file serialized-file)
+		(with-input-from-file serialized-file
+		  (λ () (deserialize (read)))))
 #+end_src
 *** Replace symbols in list with strings
+Takes a list and replaces every symbol in it with a string.
 #+name: symbols->strings-procedure
 #+begin_src racket
-(define (symbols->strings mixed-list)
-              (map (λ (element)
-                     (cond [(symbol? element)
-                            (symbol->string element)]
-                           [else element]))
-                   mixed-list))
+  (define (symbols->strings mixed-list)
+    (unless (list? mixed-list)
+      (raise-argument-error 'symbols->strings
+			    "list?" mixed-list))
+    (map (λ (element)
+	   (cond [(symbol? element)
+		  (symbol->string element)]
+		 [else element]))
+	 mixed-list))
 #+end_src
 *** Oxfordize list
+Takes a list of strings and joins them as an Oxford-comma delimited list.
 #+name: oxfordize-list-procedure
 #+begin_src racket
   (define (oxfordize-list string-list)
-		(cond [(null? string-list)
-		       (raise-argument-error 'oxfordize-list
-					     "listof string?"
-					     string-list)]
-		      [(null? (cdr string-list))
-		       (car string-list)]
-		      [(null? (cddr string-list))
-		       (string-join string-list " and ")]
-		      [else
-		       (string-join string-list ", "
-				    #:before-first ""
-				    #:before-last ", and ")]))
+    (cond [(or (not (list? string-list))
+	       (null? string-list))
+	   (raise-argument-error 'oxfordize-list
+				 "listof string?"
+				 string-list)]
+	  [(null? (cdr string-list))
+	   (car string-list)]
+	  [(null? (cddr string-list))
+	   (string-join string-list " and ")]
+	  [else
+	   (string-join string-list ", "
+			#:before-first ""
+			#:before-last ", and ")]))
 #+end_src
 *** Join list of strings and symbols as symbol
+Takes a list of strings and symbols and an optional separator, and returns them as a symbol.
 #+name: join-strings-and-symbols-as-symbol-procedure
 #+begin_src racket
   (define (join-strings-and-symbols-as-symbol unjoined-list
@@ -59,10 +84,11 @@ Code is divided into the following sections:
 	     string-separator)))
 #+end_src
 *** Generate simple ID
+Generates a non-unique ID, default 8 characters long.
 #+name: generate-simple-id-procedure
 #+begin_src racket
-  (define (generate-simple-id)
-    (substring (uuid-string) 0 8))
+  (define (generate-simple-id [id-length 8])
+    (substring (uuid-string) 0 id-length))
 #+end_src
 *** Make qtMUD logger
 #+name: make-qtmud-logger-procedure
@@ -109,91 +135,136 @@ Code is divided into the following sections:
 #+begin_src racket
   (define (increment-universe-tick-count! incremented-universe
 					  [addition 1])
+    (unless (universe? incremented-universe)
+      (raise-argument-error 'increment-universe-tick-count!
+			    "universe?" incremented-universe))
     (set-universe-tick-count!
      incremented-universe
      (+ (universe-tick-count incremented-universe)
 	addition)))
 #+end_src
 *** Add event to universe schedule
-#+name: add-event-to-universe-schedule!-procedure
+#+name: add-event-to-universe-schedule!-pro cedure
 #+begin_src racket
-  (define (add-event-to-universe-schedule! new-event changed-universe)
-    (cond [(procedure? new-event)
-	   (cond [(universe? changed-universe)
-		  (define current-schedule (universe-schedule changed-universe))
-		  (set-universe-schedule! changed-universe
-					  (append
-					   current-schedule
-					   (list new-event)))]
-		 [else
-		  (raise-argument-error 'add-event-to-universe-schedule!
-					"universe?"
-					changed-universe)])]
-	  [else
-	   (raise-argument-error 'add-event-to-universe-schedule!
-				 "procedure?"
-				 new-event)]))
+  (define (add-event-to-universe-schedule! new-event
+					   changed-universe)
+    (unless (procedure? new-event)
+      (raise-argument-error 'add-event-to-universe-schedule!
+			    "procedure?" new-event))
+    (unless (universe? changed-universe)
+      (raise-argument-error 'add-event-to-universe-schedule!
+			    "universe?" changed-universe))
+    (log-debug "Adding ~a to ~a's schedule."
+	       new-event
+	       (universe-name changed-universe))
+    (set-universe-schedule! changed-universe
+			    (append (universe-schedule changed-universe)
+				    (list new-event))))
 #+end_src
 *** Add thing to universe things
 #+name: add-thing-to-universe-things!-procedure
 #+begin_src racket
-(define (add-thing-to-universe-things! new-thing changed-universe)
-  (set-universe-things! changed-universe (append (universe-things changed-universe) (list new-thing))))
+  (define (add-thing-to-universe-things! new-thing
+					 changed-universe)
+    (unless (thing? new-thing)
+      (raise-argument-error 'add-thing-to-universe-things!
+			    "thing?" new-thing))
+    (unless (universe? changed-universe)
+      (raise-argument-error 'add-thing-to-universe-things!
+			    "universe?" changed-universe))
+    (log-debug "Adding ~a to ~a."
+	       (thing-name new-thing)
+	       (universe-name changed-thing))
+    (set-universe-things! changed-universe
+			  (append (universe-things changed-universe)
+				  (list new-thing))))
 #+end_src
 *** Universe has procedure?
 #+name: universe-has-procedure?-procedure
 #+begin_src racket
-(define (universe-has-procedure? queried-universe queried-procedure)
-  (hash-has-key? (universe-procedures queried-universe) queried-procedure))
+  (define (universe-has-procedure? queried-universe
+				   queried-procedure-key)
+    (cond
+      [(universe? queried-universe)
+       (cond
+	 [(symbol? queried-procedure-key)
+	  (hash-has-key? (universe-procedures queried-universe)
+			 queried-procedure-key)]
+	 [else
+	  (raise-argument-error 'universe-has-procedure?
+				"symbol?"
+				queried-procedure-key)])]
+      [else
+       (raise-argument-error 'universe-has-procedure?
+			     "universe?"
+			     queried-universe)]))
 #+end_src
 *** Universe procedure
 #+name: universe-procedure-procedure
 #+begin_src racket
-(define (universe-procedure queried-universe queried-procedure)
-  (cond [(universe-has-procedure? queried-universe queried-procedure)
-	 (hash-ref (universe-procedures queried-universe) queried-procedure)]
-	[else
-	 (log-warning "Tried to use procedure ~a from universe ~a, but it doesn't exist."
-		      queried-procedure
-		      (universe-name queried-universe))]))
+  (define (universe-procedure queried-universe
+			      queried-procedure)
+    (cond
+      [(universe? queried-universe)
+       (cond
+	 [(symbol? queried-procedure-key)
+	  (hash-ref (universe-procedures queried-universe)
+		    queried-procedure-key)]
+	 [else
+	  (raise-argument-error 'universe-procedure
+				"symbol?"
+				queried-procedure-key)])
+       [else
+	(raise-argument-error 'universe-procedure
+			      "universe?"
+			      queried-procedure-key)]]))
 #+end_src
 *** Set universe procedure
 #+name: set-universe-procedure!-procedure
 #+begin_src racket
-(define (set-universe-procedure! changed-universe new-procedure-key new-procedure)
-  (hash-set!
-   (universe-procedures
-    changed-universe)
-   new-procedure-key
-   new-procedure))
+  (define (set-universe-procedure! changed-universe
+				   new-procedure-key
+				   new-procedure)
+    (unless (universe? changed-universe)
+      (raise-argument-error 'set-universe-procedure!
+			    "universe?" changed-universe))
+    (unless (symbol? new-procedure-key)
+      (raise-argument-error 'set-universe-procedure!
+			    "symbol?" new-procedure-key))
+    (unless (procedure? new-procedure)
+      (raise-argument-error 'set-universe-procedure!
+			    "procedure?" new-procedure))
+    (log-debug "Setting ~a's ~a procedure to ~a."
+	       (universe-name changed-universe)
+	       new-procedure-key new-procedure)
+    (when (universe-has-procedure? changed-universe
+				   new-procedure-key)
+      (log-debug "~a already had ~a procedure, ~a, replacing it."
+		 (universe-name changed-universe)
+		 new-procedure-key new-procedure))
+    (hash-set! (universe-procedures changed-universe)
+	       new-procedure-key new-procedure))
 #+end_src
 *** Add procedures to universe
 #+name: add-procedures-to-universe!-procedure
 #+begin_src racket
-  (define (add-procedures-to-universe! procedures-list target-universe)
-    (let ([length-of-procedures-list (length procedures-list)]
-	  [target-universe-name (universe-name target-universe)]
-	  [target-universe-procedures (universe-procedures target-universe)])
-      (cond [(> length-of-procedures-list 0)
-	     (log-info "Adding ~a new procedure~a to ~a:\n  ~a"
-		       length-of-procedures-list
-		       target-universe-name
-		       (cond [(> length-of-procedures-list 1) "s "]
-			     [else " "])
-		       (string-join
-			(map (λ (p)
-			       (symbol->string (car p)))
-			     procedures-list)
-				    "\n  "))
-	     (map (λ (added-procedure)
-		    (set-universe-procedure! target-universe
-					     (car added-procedure)
-					     (cdr added-procedure)))
-		  procedures-list)]
-	    [else
-	     (log-warning "Tried to add an empty list of procedures to ~a"
-			  target-universe-name)
-	     #f])))
+  (define (add-procedures-to-universe! procedures-list
+				       target-universe)
+    (define length-of-procedures-list (length procedures-list))
+    (unless (and (> length-of-procedures-list 0)
+		 (andmap procedure? procedures-list))
+      (raise-argument-error 'add-procedures-to-universe!
+			    "listof procedure?" procedures-list))
+    (unless (universe? target-universe)
+      (raise-argument-error 'add-procedures-to-universe!
+			    "universe?" procedures-list))
+    (log-debug "Adding ~a procedures to ~a."
+	       length-of-procedures-list
+	       (universe-name target-universe))
+    (map (λ (added-procedure)
+	   (add-procedure-to-universe! added-procedure
+				       target-universe))
+	 procedures-list))
 #+end_src
 ** Creating & changing things
 #+name: thing-struct
@@ -205,42 +276,39 @@ Code is divided into the following sections:
 *** Thing has procedure?
 #+name: thing-has-procedure?-procedure
 #+begin_src racket
-(define (thing-has-procedure? queried-thing queried-procedure)
-  (cond [(hash-has-key? (thing-procedures queried-thing) queried-procedure) #t]
-        [else #f]))
+  (define (thing-has-procedure? queried-thing queried-procedure)
+    (unless (thing? queried-thing)
+      (raise-argument-error 'thing-has-procedure?
+			    "thing?" queried-thing))
+    (unless (symbol? queried-procedure-key)
+      (raise-argument-error 'thing-has-procedure?
+			    "symbol?" queried-procedure-key))
+    (hash-has-key? (thing-procedures queried-thing)
+		   queried-procedure-key))
 #+end_src
 *** Thing has quality?
 #+name: thing-has-quality?-procedure
 #+begin_src racket
-(define (thing-has-quality? queried-thing queried-quality)
-  (let ([queried-thing-name (thing-name queried-thing)]
-	[queried-thing-universe
-	 (cond [(thing-has-universe? queried-thing)
-		(thing-universe queried-thing)]
-	       [else #f])])
-    (log-debug "Checking if ~a has ~a quality."
-	     queried-thing-name queried-quality)
-    (let ([thing-has-quality?-procedure-key
-	   (join-strings-and-symbols-as-symbol
-	    (list "thing-has-" queried-quality "?"))])
-    (cond [(thing-has-procedure? queried-thing thing-has-quality?-procedure-key)
-	   (log-debug "~a has a procedure for checking itself for ~a quality; using it."
-		      queried-thing-name queried-quality)
-	   ((thing-procedure queried-thing thing-has-quality?-procedure-key))]
-	  [(and queried-thing-universe
-		(universe-has-procedure? queried-thing-universe
-					 thing-has-quality?-procedure-key))
-	   (log-debug "~a's universe, ~a, has a procedure for checking if ~a has ~a quality; using it."
-		      queried-thing-name (universe-name queried-thing-universe)
-		      queried-quality)
-	   ((universe-procedure queried-thing-universe
-				thing-has-quality?-procedure-key)
-	    queried-thing)]
-	  [else
-	   (let ([queried-thing-qualities (thing-qualities queried-thing)])
-	     (cond [(hash-has-key? queried-thing-qualities queried-quality)
-		    #t]
-		   [else #f]))]))))
+    (define (thing-has-quality? queried-thing queried-quality)
+      (unless (thing? queried-thing)
+	(raise-argument-error 'thing-has-quality?
+			      "thing?"
+			      queried-thing))
+      (unless (symbol? queried-quality)
+	(raise-argument-error 'thing-has-quality?
+			      "symbol?"
+			      queried-quality))
+      (define queried-thing-name (thing-name queried-thing))
+      (define queried-thing-universe
+	(cond [(thing-has-universe? queried-thing)
+	       (thing-universe queried-thing)]
+	      [else #f]))
+      (define result (thing-has-quality? queried-thing))
+      (log-debug "Checking if ~a has ~a quality. (~a)"
+		 queried-thing-name
+		 queried-quality
+		 result)
+      result)
 #+end_src
 *** Thing has universe?
 #+name: thing-has-universe?-procedure
@@ -297,39 +365,56 @@ Code is divided into the following sections:
 *** Set thing quality
 #+name: set-thing-quality!-procedure
 #+begin_src racket
-(define (set-thing-quality! changed-thing changed-quality new-value [add-quality? #f])
-  (cond [(or add-quality? (thing-has-quality? changed-thing changed-quality))
-	 (let ([changed-thing-name (thing-name changed-thing)]
-	       [changed-thing-universe
-		(cond [(thing-has-universe? changed-thing)
-		       (thing-universe changed-thing)]
-		      [else #f])]
-	       [set-thing-quality!-procedure-key
-		(join-strings-and-symbols-as-symbol
-		 (list "set-thing-" changed-quality "!"))])
-	   (log-debug "Setting ~a's ~a quality to ~a."
-		      changed-thing-name changed-quality new-value)
-	   (cond [(thing-has-procedure? changed-thing set-thing-quality!-procedure-key)
-		  (log-debug "~a has a procedure for setting its own ~a quality: using it."
-			     changed-thing-name changed-quality)
-		  ((thing-procedure changed-thing set-thing-quality!-procedure-key)
-		   new-value)]
-		 [(and changed-thing-universe
-		       (universe-has-procedure? changed-thing-universe
-						set-thing-quality!-procedure-key))
-		  (log-debug "~a's universe, ~a, has a procedure for setting ~a's ~a quality: using it."
-			     changed-thing-name
-			     (universe-name changed-thing-universe)
-			     changed-thing-name changed-quality)
-		  ((universe-procedure changed-thing-universe
-				       set-thing-quality!-procedure-key)
-		   changed-thing new-value)]
+  (define (symbol-replace changed-symbol start-symbol end-symbol)
+    (string->symbol
+     (string-replace (symbol->string changed-symbol)
+		     (symbol->string start-symbol)
+		     (symbol->string end-symbol))))
+
+  (define (change-thing-quality! change-procedure
+				 changed-thing
+				 changed-quality
+				 new-value)
+    (cond [(thing? changed-thing)
+	   (cond [(or add-quality?
+		      (thing-has-quality? changed-thing changed-quality))
+		  (define changed-thing-name (thing-name changed-thing))
+		  (define changed-thing-universe
+		    (cond [(thing-has-universe? changed-thing)
+			   (thing-universe changed-thing)]
+			  [else #f]))
+		  (define change-procedure-key
+		    (symbol-replace change-procedure
+				    'quality
+				    changed-quality))
+		  (cond [(thing-has-procedure? changed-thing
+					       change-procedure-key)
+			 ((thing-procedure changed-thing change-procedure-key)
+			  new-value)]
+			[(and changed-thing-universe
+			      (universe-has-procedure? changed-thing-universe
+						       change-procedure-key))
+			 ((universe-procedure changed-thing-universe
+					      change-procedure-key)
+			  changed-thing
+			  new-value)]
+			[else
+			 (display "BING")])]
 		 [else
-		  (let ([changed-thing-qualities (thing-qualities changed-thing)])
-		    (hash-set! changed-thing-qualities changed-quality new-value))]))]
-	[else
-	 (error "~a doesn't have the ~a quality."
-		(thing-name changed-thing) changed-quality)]))
+		  (raise
+		   (exn:qtmud:thing:quality:missing
+		    change-procedure
+		    changed-thing
+		    changed-quality))])]
+	  [else
+	   (raise-argument-error change-procedure
+				 "thing?" changed-thing)]))
+
+  (define (set-thing-quality! changed-thing changed-quality new-value)
+    (change-thing-quality! 'set-thing-quality!
+			   changed-thing
+			   changed-quality
+			   new-value))
 #+end_src
 *** Add string to thing quality
 #+name: add-string-to-thing-quality!-procedure
@@ -545,7 +630,6 @@ Code is divided into the following sections:
 		  #:grammar grammar #:qualities qualities
 		  #:procedures procedures)))
 #+end_src
-* MUDs
 * Tests
   :PROPERTIES:
   :header-args: :noweb yes :padline yes
@@ -583,7 +667,7 @@ Code is divided into the following sections:
 	       (λ () (create-universe "Testverse-Null" 'fail))))
 #+end_src
 ** Renaming a Universe
-* Files
+* Files                                                            :noexport:
   :PROPERTIES:
   :header-args: :noweb yes :padline yes
   :END:
@@ -673,6 +757,8 @@ Code is divided into the following sections:
 	   run-universe
 	   create-thing
 	   create-thing-creator-for-universe)
+
+  <<qtmud-exceptions-declarations>>
 
   <<§-procedure>>
   <<deserialize-file-procedure>>
