@@ -12,8 +12,14 @@
  oxfordize-list
  symbol-replace
  join-strings-and-symbols-as-symbol
- generate-simple-id)
+ generate-simple-id
+ build-procedures-list)
 
+
+(define (build-procedures-list . procedures-list)
+  (map (λ (p)
+         (cons p (eval p)))
+       procedures-list))
 
 (define (§ . s)
   (unless (andmap string? s)

@@ -3,6 +3,14 @@
 (require "../structs/mud.rkt"
          "creation.rkt")
 
+(provide increment-universe-time!
+         add-event-to-universe!
+         add-thing-to-universe!
+         universe-has-procedure?
+         universe-procedure
+         set-universe-procedure!
+         add-procedures-to-universe!)
+
 (define (increment-universe-time! incremented-universe
 					[addition 1])
   (unless (integer? addition)
@@ -91,40 +99,34 @@
              new-procedure-key
              new-procedure))
 
-(define (add-procedures-to-universe! procedures-list target-universe)
+(define (add-procedures-to-universe! procedures-list
+                                  target-universe)
   (unless (and (list? procedures-list)
-               (not (null? procedures-list))
-               (andmap procedure? procedures-list))
+               (andmap symbol?
+                       (map (λ (p) (car p))
+                            procedures-list))
+               (andmap procedure?
+                       (map (λ (p) (cdr p))
+                            procedures-list)))
     (raise-argument-error 'add-procedures-to-universe!
-                          "listof procedure?" procedures-list))
-  (unless (universe? target-universe)
-    (raise-argument-error 'add-procedures-to-universe!
-                          "universe?" target-universe))
-  (define length-of-procedures-list
-    (length procedures-list))
-  (define target-universe-name
-    (universe-name target-universe))
-  (define target-universe-procedures
-    (universe-procedures target-universe))
-  (log-debug "Adding ~a new procedure~a to ~a."
-             length-of-procedures-list
-             (cond [(> 1 length-of-procedures-list) "s "]
-                   [else " "]))
+                          "listof (symbol? . procedure?)"
+                          procedures-list))
   (map (λ (added-procedure)
-         (set-universe-procedure! target-universe
-                                  (car added-procedure)
-                                  (cdr added-procedure)))
+         (define procedure-key (car added-procedure))
+         (unless (universe-has-procedure? target-universe
+                                       procedure-key)
+           (set-universe-procedure! target-universe
+                                 procedure-key
+                                 (cdr added-procedure))))
        procedures-list))
 
 
 (module+ test
   (require rackunit)
-  (require "logging.rkt")
-  (define qtmud-universe-procedures-tests
+  (provide qtmud-universe-tests)
+  (define qtmud-universe-tests
     (test-suite
-     "Tests for qtMUD universe procedures."
-     (run-logger (create-logger 'qtMUD-Tests
-                                'debug))
+     "Tests for qtMUD universes."
      (test-case
          "Manipulating time."
        (define averse (create-universe))

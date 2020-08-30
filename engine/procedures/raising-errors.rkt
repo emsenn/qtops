@@ -3,14 +3,15 @@
 (require "../structs/mud.rkt"
          "../structs/exceptions.rkt")
 
+(provide raise-thing-quality-missing-error)
 
 (define (raise-thing-quality-missing-error trigger-procedure
                                            missing-thing
                                            missing-quality)
   (unless (symbol? trigger-procedure)
-    ((raise-argument-error 'raise-thing-quality-missing-error
-                          "symbol?"
-                          trigger-procedure))
+    (raise-argument-error 'raise-thing-quality-missing-error
+                           "symbol?"
+                           trigger-procedure))
   (unless (thing? missing-thing)
     (raise-argument-error 'raise-thing-quality-missing-error
                           "thing?"

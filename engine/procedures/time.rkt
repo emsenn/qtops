@@ -20,7 +20,7 @@
       (set! current-events (cdr current-events))
       (let ([event-result (current-event ticked-universe)])
         (when (universe? event-result)
-          (seet! ticked-univrse event-result)))
+          (set! ticked-universe event-result)))
       (loop)))
   ticked-universe)
 

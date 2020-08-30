@@ -4,7 +4,8 @@
          "utilities.rkt")
 
 (provide create-universe
-         create-thing)
+         create-thing
+         create-thing-creator-for-universe)
 
 (define (create-universe [name (§ "Universe-"
 				  (generate-simple-id 3))]
@@ -19,9 +20,12 @@
   (log-debug "Creating universe ~a" name)
   (universe name 0 events (list) (make-hash)))
 
-(define (create-thing [name "thing"] [chosen-universe #f]
-		    #:grammar [grammar #f] #:qualities [qualities #f]
-		    #:procedures [procedures #f])
+(define (create-thing [name (§ "thing-"
+                               (generate-simple-id 3))]
+                      [chosen-universe #f]
+                      #:grammar [grammar #f]
+                      #:qualities [qualities #f]
+                      #:procedures [procedures #f])
   (log-info "Creating a new thing named ~a~a"
 	    name
 	    (cond [chosen-universe
@@ -54,7 +58,8 @@
 
 (module+ test
   (require rackunit)
-  (define qtmud-creation-procedures-tests
+  (provide qtmud-creation-tests)
+  (define qtmud-creation-tests
     (test-suite
      "Tests for qtMUD's creation procedures."
      (test-case

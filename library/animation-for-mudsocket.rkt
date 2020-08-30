@@ -1,8 +1,6 @@
 #lang racket
 
-;; low-key depends on containers.
-
-(require "../qtmud.rkt")
+(require "../engine/main.rkt")
 
 (provide make-look-mudsocket-command-for-thing
 	 make-move-mudsocket-command-for-thing)
@@ -57,7 +55,7 @@
       (define commanding-thing-container
         (thing-quality commanding-thing 'container))
       (define commanding-thing-container-area-exits
-        (thing-quality commanding-thing-cointainer 'area-exits))
+        (thing-quality commanding-thing-container 'area-exits))
       (cond
         [(hash-has-key? command-arguments 'line)
          (define command-arguments-line
@@ -67,7 +65,7 @@
                            command-arguments-line)
             (define destination-area
               (hash-ref commanding-thing-container-area-exits
-                        command-argument-line))
+                        command-arguments-line))
             (remove-element-from-thing-quality!
              commanding-thing
              commanding-thing-container
@@ -94,10 +92,22 @@
            [else
             (add-string-to-thing-quality!
              (format "You failed to move: ~a is an invalid exit."
-                     command-argument-line)
+                     command-arguments-line)
              commanding-thing 'mudsocket-output-buffer)])]
         [else
          (add-string-to-thing-quality!
           (§ "You must use this command with an exit, "
              "try to \"look\" for one.")
           commanding-thing 'mudsocket-output-buffer)])))
+
+
+(module+ test
+  (require rackunit)
+  (require "logging.rkt")
+  (define qtmud-animation-for-mudsocket-tests
+    (test-suite
+     "Tests for qtMUD's Animation for MUDSocket library component."
+     (run-logger (create-logger 'qtMUD 'debug))
+     (test-case
+         "No real tests!
+         (check-eq? 1 1)))))

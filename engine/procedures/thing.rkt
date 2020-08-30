@@ -1,34 +1,42 @@
 #lang racket
 
 (require "../structs/mud.rkt"
-         "raising-errors.rkt")
+         "raising-errors.rkt"
+         "universe.rkt"
+         "utilities.rkt")
 
 (provide thing-has-procedure?
          thing-procedure
+         set-thing-procedure!
+         add-procedures-to-thing!
          thing-has-universe?
          thing-has-quality?
          thing-quality
+         add-quality-to-thing!
          set-thing-quality!
          add-string-to-thing-quality!
+         element-in-thing-quality?
          add-element-to-thing-quality!
          add-elements-to-thing-quality!
          remove-element-from-thing-quality!
          add-keyvalue-to-thing-quality!
          add-keyvalues-to-thing-quality!
          remove-key-from-thing-quality!
+         thing-quality-key
          list-thing-names)
 
 (define (use-thing-procedure handler-procedure
                       handled-thing
                       handled-symbol
-                      [new-value #f])
+                      [new-value #f]
+                      #:pass-symbol [pass-symbol #t])
   (unless (symbol? handler-procedure)
     (raise-argument-error 'use-thing-procedure
                           "symbol?" handler-procedure))
   (unless (thing? handled-thing)
     (raise-argument-error handler-procedure
                           "thing?" handled-thing))
-  (unless (symbol? handled-symbol)y
+  (unless (symbol? handled-symbol)
     (raise-argument-error handler-procedure
                           "symbol?" handled-symbol))
   (define (do-target-procedure target-procedure
@@ -37,43 +45,71 @@
                                new-value)
     (cond
       [new-value
-       (target-procedure handled-thing
-                         handled-symbol
-                         new-value)]
+       (cond
+         [pass-symbol
+          (target-procedure handled-thing
+                            handled-symbol
+                            new-value)]
+         [else
+          (target-procedure handled-thing
+                            new-value)])]
       [else
-       (target-procedure handled-thing
-                         handled-symbol)]))
+       (cond
+         [pass-symbol
+          (target-procedure handled-thing handled-symbol)]
+         [else
+          (target-procedure handled-thing)])]))
   (define handled-thing-name (thing-name handled-thing))
   (define handled-thing-universe
-    (thing-universe bill))
-  (log-debug "Handling ~a"
-             handled-thing-name)
+    (thing-universe handled-thing))
+  (log-debug "Checking if ~a has a ~a procedure."
+             handled-thing-name
+             handler-procedure)
   (cond [(thing-has-procedure? handled-thing handler-procedure #t)
+         (log-debug "~a has a ~a procedure, using it."
+                    handled-thing-name
+                    handler-procedure)
           (do-target-procedure
            (thing-procedure handled-thing handler-procedure #t)
            handled-thing handled-symbol new-value)]
         [(and handled-thing-universe
               (universe-has-procedure? handled-thing-universe
                                        handler-procedure))
+         (log-debug "~a's universe ~a has a ~a procedure, using it."
+                    handled-thing-name
+                    (universe-name handled-thing-universe)
+                    handler-procedure)
          (do-target-procedure
-          (universe-procedure handler-procedure)
+          (universe-procedure handled-thing-universe
+                              handler-procedure)
           handled-thing handled-symbol new-value)]
-        [else #f]))
+        [else
+         (log-debug "~a doesn't have a ~a procedure."
+                    handled-thing-name
+                    handler-procedure)
+         #f]))
 
 (define (use-thing-quality-procedure handler-procedure
                                      handled-thing
                                      handled-symbol
                                      [new-value #f])
-  (or (use-thing-procedure (symbol-replace handler-procedure
-                                           'quality
-                                           handled-symbol)
-                           handled-thing
-                           handled-symbol
-                           new-value)
-      (use-thing-procedure handler-procedure
-                           handled-thing
-                           handled-symbol
-                           new-value)))
+  (log-debug (§ "Checking if ~a has a ~a procedure for the ~a "
+                "quality.")
+             (thing-name handled-thing)
+             handler-procedure
+             handled-symbol)
+  (unless (use-thing-procedure (symbol-replace handler-procedure
+                                               'quality
+                                               handled-symbol)
+                               handled-thing
+                               handled-symbol
+                               new-value
+                               #:pass-symbol #f)
+    (use-thing-procedure handler-procedure
+                         handled-thing
+                         handled-symbol
+                         new-value
+                         #:pass-symbol #f)))
 
 (define (thing-has-procedure? queried-thing
                               queried-procedure
@@ -94,23 +130,66 @@
                                       queried-procedure)))
     (hash-ref (thing-procedures queried-thing) queried-procedure)))
 
+(define (set-thing-procedure! changed-thing
+                              changed-procedure
+                              new-value
+                              [skip #f])
+  (when (or skip
+            (not (use-thing-procedure 'set-thing-procedure!
+                                      changed-thing
+                                      changed-procedure
+                                      new-value)))
+    (hash-set! (thing-procedures changed-thing)
+               changed-procedure
+               new-value)))
+
+(define (add-procedures-to-thing! procedures-list
+                                  target-thing)
+  (unless (and (list? procedures-list)
+               (andmap symbol?
+                       (map (λ (p) (car p))
+                            procedures-list))
+               (andmap procedure?
+                       (map (λ (p) (cdr p))
+                            procedures-list)))
+    (raise-argument-error 'add-procedures-to-universe!
+                          "listof (symbol? . procedure?)"
+                          procedures-list))
+  (map (λ (added-procedure)
+         (define procedure-key (car added-procedure))
+         (unless (thing-has-procedure? target-thing
+                                       procedure-key)
+           (set-thing-procedure! target-thing
+                                 procedure-key
+                                 (cdr added-procedure))))
+       procedures-list))
+
 (define (thing-has-universe? queried-thing)
   (cond [(universe? (thing-universe queried-thing)) #t]
         [else #f]))
 
 (define (thing-has-quality? queried-thing
                             queried-quality)
+  (log-debug (§ "Primary thing-has-quality? procedure has been "
+                "called on ~a (for the ~a quality).")
+             (thing-name queried-thing)
+             queried-quality)
   (unless
       (use-thing-quality-procedure 'thing-has-quality?
                                    queried-thing
-                                   queried-quality))
-  (hash-has-key? (thing-quality queried-thing)
-                 queried-quality))
+                                   queried-quality)
+    (log-debug "Using default thing-has-quality? procedure for ~a."
+               (thing-name queried-thing))
+    (hash-has-key? (thing-qualities queried-thing)
+                                  queried-quality)))
 
 (define (thing-quality queried-thing queried-quality)
   (unless (use-thing-procedure 'thing-quality
                                queried-thing
                                queried-quality)
+    (log-debug "Using default thing-quality procedure on ~a for ~a."
+               (thing-name queried-thing)
+               queried-quality)
     (cond
       [(thing-has-quality? queried-thing
                            queried-quality)
@@ -124,28 +203,50 @@
 
 (define (set-thing-quality! changed-thing
                             changed-quality
-                            new-value)
-  (unless (use-thing-quality-procedure 'set-thing-quality!
+                            new-value
+                            #:skip [skip #f]
+                            #:force [force-set #f])
+  (log-debug (§ "Primary set-thing-quality! procedure has been "
+                "called on ~a (for the ~a quality).")
+             (thing-name changed-thing)
+             changed-quality)
+  (when (or skip
+            (not (use-thing-quality-procedure 'set-thing-quality!
+                                              changed-thing
+                                              changed-quality
+                                              new-value)))
+    (log-debug "Using default set-thing-quality! procedure for ~a."
+               (thing-name changed-thing))
+    (cond
+      [(or force-set
+           (thing-has-quality? changed-thing
+                           changed-quality))
+       (hash-set! (thing-qualities changed-thing)
+                  changed-quality
+                  new-value)]
+      [else
+       (raise-thing-quality-missing-error
+        'set-thing-quality!
+        changed-thing
+        changed-quality)])))
+
+(define (add-quality-to-thing! new-quality
+                               changed-thing)
+  (unless (use-thing-quality-procedure 'add-quality-to-thing!
                                        changed-thing
-                                       changed-quality
-                                       new-value))
-  (cond
-    [(thing-has-quality? changed-thing
-                         changed-quality)
-     (hash-set! (thing-qualities changed-thing)
-                changed-quality
-                new-value)]
-    [else
-     (raise-thing-quality-missing-error
-      'set-thing-quality!
-      queried-thing
-      queried-quality)]))
+                                       new-quality)
+    (set-thing-quality! changed-thing
+                        new-quality
+                        (void)
+                        #:skip #t
+                        #:force #t)))
+
 
 (define (add-string-to-thing-quality! input-string
                                       changed-thing
                                       changed-quality)
   (unless (string? input-string)
-    (raise-argument-error 'add-stirng-to-thing-quality!
+    (raise-argument-error 'add-string-to-thing-quality!
                           "string?"
                           input-string))
   (unless (use-thing-quality-procedure 'add-string-to-thing-quality!
@@ -155,17 +256,31 @@
     (set-thing-quality! changed-thing
                         changed-quality
                         (string-join
-                         (thing-quality changed-thing
-                                        thing-quality)
-                         input-string))))
+                         (list (thing-quality changed-thing
+                                              changed-quality)
+                               input-string)))))
+
+(define (element-in-thing-quality? queried-element
+                                   queried-thing
+                                   queried-quality)
+  (unless (use-thing-quality-procedure 'element-in-thing-quality?
+                                       queried-thing
+                                        queried-quality
+                                        queried-element)
+    (unless (thing-has-quality? queried-thing queried-quality)
+      (cond
+        [(member (thing-quality queried-thing queried-quality)
+                 queried-element)
+         #t]
+        [else #f]))))
 
 (define (add-element-to-thing-quality! new-element
                                       changed-thing
                                       changed-quality)
   (unless (use-thing-quality-procedure 'add-element-to-thing-quality!
-                                       changed-thing
+                                       new-element
                                        changed-quality
-                                       new-element)
+                                       changed-thing)
     (unless (list? (thing-quality changed-quality))
       (raise-argument-error 'add-element-to-thing-quality!
                             "list?"
@@ -245,6 +360,18 @@
     (hash-remove! (thing-quality changed-thing
                                  changed-quality)
                   removed-key)))
+
+(define (thing-quality-key queried-thing
+                           queried-quality
+                           queried-key)
+  (unless (use-thing-quality-procedure
+           'thing-quality-key
+           queried-thing
+           queried-quality
+           queried-key)
+    (hash-ref (thing-quality queried-thing
+                             queried-quality)
+              queried-key)))
 
 (define (list-thing-names things)
   (unless (and (list? things)
