@@ -29,10 +29,12 @@
 
 (define (add-description-procedures-to-x! x)
   (define description-procedures
-    (map (λ (p) (cons p (eval p)))
-         (list 'add-description-to-thing!
-               'set-thing-description!)))
-    (log-debug "Adding description procedures to ~a."
+    (list
+     (cons 'add-description-to-thing!
+           add-description-to-thing!)
+     (cons 'set-thing-description!
+           set-thing-description!)))
+  (log-debug "Adding description procedures to ~a."
              (cond [(universe? x)
                     (universe-name x)]
                    [(thing? x)

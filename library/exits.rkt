@@ -49,10 +49,13 @@
 
 (define (add-exit-procedures-to-x! x)
   (define exit-procedures
-    (map (λ (p) (cons p (eval p)))
-         (list 'add-exits-to-thing!
-               'set-thing-exits!
-               'add-keyvalue-to-thing-exits!)))
+    (list
+     (cons 'add-exits-to-thing!
+           add-exits-to-thing!)
+     (cons 'set-thing-exits!
+           set-thing-exits!)
+     (cons 'add-keyvalue-to-thing-exits!
+           add-keyvalue-to-thing-exits!)))
     (log-debug "Adding exit procedures to ~a."
              (cond [(universe? x)
                     (universe-name x)]

@@ -5,7 +5,9 @@
          "universe.rkt"
          "utilities.rkt")
 
-(provide thing-has-procedure?
+(provide use-thing-procedure
+         use-thing-quality-procedure
+         thing-has-procedure?
          thing-procedure
          set-thing-procedure!
          add-procedures-to-thing!
@@ -29,7 +31,8 @@
                       handled-thing
                       handled-symbol
                       [new-value #f]
-                      #:pass-symbol [pass-symbol #t])
+                      #:pass-symbol [pass-symbol #t]
+                      #:flip-syntax [flip-syntax #f])
   (unless (symbol? handler-procedure)
     (raise-argument-error 'use-thing-procedure
                           "symbol?" handler-procedure))
@@ -47,12 +50,24 @@
       [new-value
        (cond
          [pass-symbol
-          (target-procedure handled-thing
-                            handled-symbol
-                            new-value)]
+          (cond
+            [flip-syntax
+              (target-procedure new-value
+                                handled-thing
+                                handled-symbol)]
+            [else
+             (target-procedure handled-thing
+                               handled-symbol
+                               new-value)])]
          [else
-          (target-procedure handled-thing
-                            new-value)])]
+          (cond
+            [flip-syntax
+             (printf "\n\n\n\nTHIS ONE SHOULD BE HAPPENING!!\n\n\n")
+             (target-procedure new-value
+                               handled-thing)]
+            [else
+             (target-procedure handled-thing
+                               new-value)])])]
       [else
        (cond
          [pass-symbol
@@ -92,7 +107,8 @@
 (define (use-thing-quality-procedure handler-procedure
                                      handled-thing
                                      handled-symbol
-                                     [new-value #f])
+                                     [new-value #f]
+                                     #:flip-syntax [flip-syntax #f])
   (log-debug (§ "Checking if ~a has a ~a procedure for the ~a "
                 "quality.")
              (thing-name handled-thing)
@@ -104,12 +120,14 @@
                                handled-thing
                                handled-symbol
                                new-value
-                               #:pass-symbol #f)
+                               #:pass-symbol #f
+                               #:flip-syntax flip-syntax)
     (use-thing-procedure handler-procedure
                          handled-thing
                          handled-symbol
                          new-value
-                         #:pass-symbol #f)))
+                         #:pass-symbol #f
+                         #:flip-syntax flip-syntax)))
 
 (define (thing-has-procedure? queried-thing
                               queried-procedure
@@ -252,7 +270,8 @@
   (unless (use-thing-quality-procedure 'add-string-to-thing-quality!
                                        changed-thing
                                        changed-quality
-                                       input-string)
+                                       input-string
+                                       #:flip-syntax #t)
     (set-thing-quality! changed-thing
                         changed-quality
                         (string-join
@@ -266,7 +285,8 @@
   (unless (use-thing-quality-procedure 'element-in-thing-quality?
                                        queried-thing
                                         queried-quality
-                                        queried-element)
+                                        queried-element
+                                        #:flip-syntax #t)
     (unless (thing-has-quality? queried-thing queried-quality)
       (cond
         [(member (thing-quality queried-thing queried-quality)
@@ -278,9 +298,10 @@
                                       changed-thing
                                       changed-quality)
   (unless (use-thing-quality-procedure 'add-element-to-thing-quality!
-                                       new-element
+                                       changed-thing
                                        changed-quality
-                                       changed-thing)
+                                       new-element
+                                       #:flip-syntax #t)
     (unless (list? (thing-quality changed-quality))
       (raise-argument-error 'add-element-to-thing-quality!
                             "list?"
@@ -317,8 +338,8 @@
        'remove-element-from-thing-quality!
        changed-thing
        changed-quality
-       removed-element)
-
+       removed-element
+       #:flip-syntax #t)
     (set-thing-quality! changed-thing
                         changed-quality
                         (remove removed-element
@@ -332,7 +353,8 @@
            'add-keyvalue-to-thing-quality!
            changed-thing
            changed-quality
-           new-keyvalue)
+           new-keyvalue
+           #:flip-syntax #f)
     (hash-set! (thing-quality changed-thing changed-quality)
                (car new-keyvalue) (cdr new-keyvalue))))
 
@@ -356,7 +378,8 @@
            'remove-key-from-thing-quality!
            changed-thing
            changed-quality
-           removed-key)
+           removed-key
+           #:flip-syntax #f)
     (hash-remove! (thing-quality changed-thing
                                  changed-quality)
                   removed-key)))

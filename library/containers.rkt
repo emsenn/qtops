@@ -8,6 +8,7 @@
          set-thing-contents!
          add-element-to-thing-contents!
          remove-element-from-thing-contents!
+         move-thing-into-thing!
          add-container-procedures-to-thing!
          add-container-procedures-to-universe!)
 
@@ -82,38 +83,51 @@
     (raise-argument-error 'remove-element-from-thing-contents
                           "thing?"
                           removed-element))
+  (display (format "Removing ~a from ~a"
+                   (thing-name removed-element)
+                   (thing-name container-thing)))
   (set-thing-quality! container-thing
                       'contents
-                      (remove (thing-quality container-thing
-                                             'contents)
-                              removed-element)))
+                      (remove removed-element
+                              (thing-quality container-thing
+                                             'contents))))
 
 (define (move-thing-into-thing! moved-thing
                                 destination-thing)
-    (define moved-thing-container
+  (printf "!! MOVING ~A INTO ~A"
+          (thing-name moved-thing)
+          (thing-name destination-thing))
+  (define moved-thing-container
     (thing-quality moved-thing 'container))
-    (when (and (thing? moved-thing-container)
+  (when (and (thing? moved-thing-container)
              (element-in-thing-quality? moved-thing
                                         moved-thing-container
                                         'contents))
     (remove-element-from-thing-quality! moved-thing
                                         moved-thing-container
                                         'contents))
-    (add-element-to-thing-quality! moved-thing
+  (add-element-to-thing-quality! moved-thing
                                  destination-thing
                                  'contents)
   (set-thing-quality! moved-thing 'container destination-thing))
 
 (define (add-container-procedures-to-x! x)
   (define container-procedures
-    (map (λ (p) (cons p (eval p)))
-         (list 'add-container-to-thing!
-               'set-thing-container!
-               'add-contents-to-thing!
-               'set-thing-contents!
-               'add-element-to-thing-contents!
-               'remove-element-from-thing-contents!
-               'move-thing-into-thing)))
+    (list
+     (cons 'add-container-to-thing!
+           add-container-to-thing!)
+     (cons 'set-thing-container!
+           set-thing-container!)
+     (cons 'add-contents-to-thing!
+           add-contents-to-thing!)
+     (cons 'set-thing-contents!
+           set-thing-contents!)
+     (cons 'add-element-to-thing-contents!
+           add-element-to-thing-contents!)
+     (cons 'remove-element-from-thing-contents!
+           remove-element-from-thing-contents!)
+     (cons 'move-thing-into-thing!
+           move-thing-into-thing!)))
   (log-debug "Adding container procedures to ~a."
              (cond [(universe? x)
                     (universe-name x)]
