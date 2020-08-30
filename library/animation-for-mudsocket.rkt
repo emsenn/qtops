@@ -67,16 +67,12 @@
           (define destination-area
             (hash-ref commanding-thing-container-exits
                       command-arguments-line))
-          (printf "MOVING ~a into ~a"
-                  (thing-name commanding-thing)
-                  (thing-name destination-area))
           (unless (use-thing-procedure
                    'move-thing-into-thing!
                    commanding-thing
                    'null
                    destination-area
                    #:pass-symbol #f)
-            (printf "USING DEFAULT MOVE")
             (move-thing-into-thing! commanding-thing
                                    destination-area))
           (add-string-to-thing-quality!

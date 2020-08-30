@@ -94,9 +94,6 @@
 
 (define (move-thing-into-thing! moved-thing
                                 destination-thing)
-  (printf "!! MOVING ~A INTO ~A"
-          (thing-name moved-thing)
-          (thing-name destination-thing))
   (define moved-thing-container
     (thing-quality moved-thing 'container))
   (when (and (thing? moved-thing-container)

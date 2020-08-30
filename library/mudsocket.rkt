@@ -175,7 +175,6 @@
 	(tcp-addresses mudsocket-in #t))
       (log-info "MUDSocket accepted a new connection from ~a:~a"
 		remote-ip remote-port)
-      (display "BIIIIIIIIIING")
       (define connected-thing (create-thing "MUDSocket client"
                                             ticked-universe))
       (change-thing-into-mudsocket-client! connected-thing
@@ -185,7 +184,6 @@
                                            remote-port)
       (log-debug "Changed ~a into a proper MUDsocket client."
 		 (thing-name connected-thing))
-      (display "BAAAAAANGLE")
       (set! current-connections (append (list connected-thing)
                                         current-connections))
       (log-debug "Added ~a into the list of current connections."

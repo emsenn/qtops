@@ -62,7 +62,6 @@
          [else
           (cond
             [flip-syntax
-             (printf "\n\n\n\nTHIS ONE SHOULD BE HAPPENING!!\n\n\n")
              (target-procedure new-value
                                handled-thing)]
             [else

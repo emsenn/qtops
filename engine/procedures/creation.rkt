@@ -17,7 +17,7 @@
                (andmap procedure? events))
     (raise-argument-error 'create-universe
                           "listof procedure?" events))
-  (log-debug "Creating universe ~a" name)
+  (log-debug "Creating universe ~a." name)
   (universe name 0 events (list) (make-hash)))
 
 (define (create-thing [name (§ "thing-"
@@ -29,7 +29,7 @@
   (log-info "Creating a new thing named ~a~a"
 	    name
 	    (cond [chosen-universe
-		   (format "for ~a."
+		   (format " for ~a."
 			   (universe-name chosen-universe))]
 		  [else "."]))
   (let ([created-thing (thing name chosen-universe
