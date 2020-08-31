@@ -33,7 +33,8 @@
 			   (universe-name chosen-universe))]
 		  [else "."]))
   (let ([created-thing (thing name chosen-universe
-			      (cond [grammar (make-hash grammar)]
+			      (cond [grammar
+                                     (make-hash grammar)]
 				    [else (make-hash)])
 			      (cond [qualities (make-hash qualities)]
 				    [else (make-hash)])

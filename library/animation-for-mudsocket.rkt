@@ -6,6 +6,30 @@
 (provide make-look-mudsocket-command-for-thing
 	 make-move-mudsocket-command-for-thing)
 
+(define (render-look looked-thing)
+  (format "[    ~a    ]~a~a"
+          (thing-name looked-thing)
+          (cond
+            [(thing-has-quality?
+              looked-thing
+              'description)
+             (format "\n  ~a"
+                     (thing-quality
+                      looked-thing
+                      'description))]
+            [else ""])
+          (cond
+            [(thing-has-quality?
+              looked-thing
+              'exits)
+             (format "\n  Exits: ~a"
+                     (oxfordize-list
+                      (hash-keys
+                       (thing-quality
+                        looked-thing
+                        'exits))))]
+            [else ""])))
+
 (define (make-look-mudsocket-command-for-thing commanding-thing)
   (λ (command-arguments)
     (cond
@@ -15,28 +39,7 @@
           (let ([commanding-thing-container
                  (thing-quality commanding-thing 'container)])
             (add-string-to-thing-quality!
-             (format "[    ~a    ]~a~a"
-                     (thing-name commanding-thing-container)
-                     (cond
-                       [(thing-has-quality?
-                         commanding-thing-container
-                         'description)
-                        (format "\n  ~a"
-                                (thing-quality
-                                 commanding-thing-container
-                                 'description))]
-                       [else ""])
-                     (cond
-                       [(thing-has-quality?
-                         commanding-thing-container
-                         'exits)
-                        (format "\n  Area exits: ~a"
-                                (oxfordize-list
-                                 (hash-keys
-                                  (thing-quality
-                                   commanding-thing-container
-                                   'exits))))]
-                       [else ""]))
+             (render-look commanding-thing-container)
              commanding-thing 'mudsocket-output-buffer))]
          [else
           (add-string-to-thing-quality!
@@ -47,9 +50,35 @@
         "Looking inside things doesn't work yet, sorry."
         commanding-thing 'mudsocket-output-buffer)]
       [(hash-has-key? command-arguments 'line)
-       (add-string-to-thing-quality!
-        "Looking at things doesn't work yet, sorry."
-        commanding-thing 'mudsocket-output-buffer)])))
+       (define command-arguments-line
+         (hash-ref command-arguments 'line))
+       (define searched-environment
+         (flatten
+          (list
+           (list (thing-quality commanding-thing
+                                'container))
+           (thing-quality
+            (thing-quality commanding-thing
+                           'container)
+            'contents))))
+       (define matching-things
+         (search-things-by-term searched-environment
+                                command-arguments-line))
+       (cond
+         [(null? matching-things)
+          (add-string-to-thing-quality!
+           (format "You cannot see \"~a\"."
+                   command-arguments-line)
+           commanding-thing 'mudsocket-output-buffer)]
+         [(= (length matching-things) 1)
+          (add-string-to-thing-quality!
+           (render-look (first matching-things))
+           commanding-thing 'mudsocket-output-buffer)]
+         [else
+          (add-string-to-thing-quality!
+           (format
+            "There are multiple here things matching \"a\": ~a."
+            (list-thing-names matching-things)))])])))
 
 (define (make-move-mudsocket-command-for-thing commanding-thing)
   (λ (command-arguments)

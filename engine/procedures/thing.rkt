@@ -1,11 +1,16 @@
 #lang racket
 
 (require "../structs/mud.rkt"
+         "grammar.rkt"
          "raising-errors.rkt"
          "universe.rkt"
          "utilities.rkt")
 
-(provide use-thing-procedure
+(provide thing-name=?
+         thing-adjectives
+         thing-nouns
+         thing-matches-term?
+         use-thing-procedure
          use-thing-quality-procedure
          thing-has-procedure?
          thing-procedure
@@ -14,6 +19,8 @@
          thing-has-universe?
          thing-has-quality?
          thing-quality
+         thing-quality-head
+         thing-quality-tail
          add-quality-to-thing!
          set-thing-quality!
          add-string-to-thing-quality!
@@ -25,7 +32,81 @@
          add-keyvalues-to-thing-quality!
          remove-key-from-thing-quality!
          thing-quality-key
-         list-thing-names)
+         list-thing-names
+         things-with-quality
+         search-things-by-term
+         search-thing-quality-by-term
+         )
+
+(define (thing-name=? queried-thing given-string)
+  (string=? (thing-name queried-thing) given-string))
+
+(define (thing-adjectives queried-thing)
+  (unless (thing? queried-thing)
+    (raise-argument-error 'thing-adjectives
+                          "thing?" queried-thing))
+  (define queried-thing-grammar
+    (thing-grammar queried-thing))
+  (cond
+    [(hash-has-key? queried-thing-grammar 'adjectives)
+     (hash-ref queried-thing-grammar 'adjectives)]
+    [else '()]))
+
+(define (thing-nouns queried-thing)
+  (unless (thing? queried-thing)
+    (raise-argument-error 'thing-nouns
+                          "thing?" queried-thing))
+  (define queried-thing-grammar
+    (thing-grammar queried-thing))
+  (cond
+    [(hash-has-key? queried-thing-grammar 'nouns)
+     (hash-ref queried-thing-grammar 'nouns)]
+    [else '()]))
+
+(define (thing-matches-term? queried-thing
+                             queried-term)
+          queried-term (thing-name queried-thing)
+  (define queried-thing-name (thing-name queried-thing))
+  (cond
+    [(string=? queried-thing-name queried-term)
+     #t]
+    [else
+     (define split-queried-term
+       (string-split queried-term " "))
+     (define queried-term-noun
+       (cond
+         [(> (length split-queried-term) 1)
+          (last split-queried-term)]
+         [else (car split-queried-term)]))
+     (define queried-thing-split-name
+       (string-split queried-thing-name " "))
+     (define queried-thing-nouns
+       (append (thing-nouns queried-thing)
+               (list
+                (cond
+                  [(> (length queried-thing-split-name) 1)
+                   (last queried-thing-split-name)]
+                  [else (car queried-thing-split-name)]))))
+     (cond
+       [(member queried-term-noun
+                queried-thing-nouns)
+        (cond
+          [(> (length split-queried-term) 1)
+           (define queried-thing-adjectives
+             (thing-adjectives queried-thing))
+           (cond
+             [(> (length queried-thing-adjectives) 0)
+              (define queried-term-adjectives
+                (reverse (cdr (reverse split-queried-term))))
+              (andmap
+               (λ (adjective)
+                 (not (null?
+                       (member adjective
+                               queried-thing-adjectives))))
+               queried-term-adjectives)]
+             [else #f])]
+          [else #t])]
+       [else #f])]))
 
 (define (use-thing-procedure handler-procedure
                       handled-thing
@@ -218,6 +299,15 @@
         queried-thing
         queried-quality)])))
 
+(define (thing-quality-head queried-thing
+                            queried-quality)
+  (car (thing-quality queried-thing queried-quality)))
+
+(define (thing-quality-tail queried-thing
+                            queried-quality)
+  (cdr (thing-quality queried-thing queried-quality)))
+
+
 (define (set-thing-quality! changed-thing
                             changed-quality
                             new-value
@@ -301,10 +391,11 @@
                                        changed-quality
                                        new-element
                                        #:flip-syntax #t)
-    (unless (list? (thing-quality changed-quality))
+    (unless (list? (thing-quality changed-thing changed-quality))
       (raise-argument-error 'add-element-to-thing-quality!
                             "list?"
-                            (thing-quality changed-quality)))
+                            (thing-quality changed-thing
+                                           changed-quality)))
     (set-thing-quality! changed-thing
                         changed-quality
                         (append (thing-quality changed-thing
@@ -405,3 +496,46 @@
    (map (λ (this-thing)
           (thing-name this-thing))
         things)))
+
+(define (things-with-quality queried-things
+                             queried-quality)
+  (filter
+   (λ (t)
+     (thing-has-quality? t
+                         queried-quality))
+   queried-things))
+
+
+(define (search-things-by-term searched-things
+                               queried-term)
+  (filter
+   thing?
+   (map
+    (λ (queried-thing)
+      (when (thing-matches-term? queried-thing
+                                 queried-term)
+        queried-thing))
+    searched-things)))
+
+
+
+
+
+(define (search-thing-quality-by-term searched-thing
+                                      queried-quality
+                                      queried-term)
+  (unless (use-thing-quality-procedure
+           'search-thing-quality-by-term
+           searched-thing
+           queried-quality
+           queried-term)
+    (define searched-thing-quality
+      (thing-quality searched-thing queried-quality))
+    (unless (and (list? searched-thing-quality)
+                 (andmap thing? searched-thing-quality))
+      (raise-thing-quality-type-error 'search-thing-quality-by-term
+                                      searched-thing
+                                      queried-quality
+                                      "listof thing?"))
+    (search-things-by-term searched-thing-quality
+                           queried-term)))

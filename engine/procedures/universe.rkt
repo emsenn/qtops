@@ -118,7 +118,8 @@
            (set-universe-procedure! target-universe
                                  procedure-key
                                  (cdr added-procedure))))
-       procedures-list))
+       procedures-list)
+  (void))
 
 
 (module+ test
