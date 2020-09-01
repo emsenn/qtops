@@ -26,7 +26,8 @@
                          addition)))
 
 (define (add-event-to-universe! new-event
-                                         changed-universe)
+                                changed-universe
+                                [moments 1])
   (unless (procedure? new-event)
     (raise-argument-error 'add-event-to-universe-schedule!
                           "procedure?" new-event))
@@ -37,9 +38,35 @@
              (universe-name changed-universe)
              new-event)
   (define current-schedule (universe-schedule changed-universe))
-  (set-universe-schedule! changed-universe
-                          (append current-schedule
-                                  (list new-event))))
+  (define real-moment (- moments 1))
+  (when (< real-moment 0) (set! real-moment 0))
+  (cond
+    [(< real-moment (length current-schedule))
+     (define current-schedule-moment
+       (list-ref current-schedule
+                 real-moment))
+     (define new-schedule
+       (list-set current-schedule
+                 real-moment
+                 (append current-schedule-moment
+                         (list new-event))))
+     (set-universe-schedule!
+      changed-universe
+      new-schedule)]
+    [else
+     (define new-moments
+       (build-list (- moments (length current-schedule))
+                   values))
+     (map
+      (λ (_)
+        (set-universe-schedule!
+         changed-universe
+         (append (universe-schedule changed-universe)
+                 (list (list)))))
+      new-moments)
+     (add-event-to-universe! new-event
+                             changed-universe
+                             moments)]))
 
 (define (add-thing-to-universe! new-thing
                                 changed-universe)

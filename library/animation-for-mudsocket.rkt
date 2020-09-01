@@ -7,7 +7,7 @@
 	 make-move-mudsocket-command-for-thing)
 
 (define (render-look looked-thing)
-  (format "[    ~a    ]~a~a"
+  (format "[    ~a    ]~a~a~a"
           (thing-name looked-thing)
           (cond
             [(thing-has-quality?
@@ -19,15 +19,33 @@
                       'description))]
             [else ""])
           (cond
-            [(thing-has-quality?
-              looked-thing
-              'exits)
+            [(and (thing-has-quality?
+                   looked-thing
+                   'exits)
+                  (not (hash-empty?
+                        (thing-quality looked-thing
+                                       'exits))))
              (format "\n  Exits: ~a"
                      (oxfordize-list
                       (hash-keys
                        (thing-quality
                         looked-thing
                         'exits))))]
+            [else ""])
+          (cond
+            [(and (thing-has-quality? looked-thing
+                                      'contents)
+                  (> (length (things-with-quality
+                              (thing-quality looked-thing
+                                             'contents)
+                              'mass))
+                     0))
+             (format "\n  Contents: ~a"
+                     (list-thing-names
+                      (things-with-quality
+                       (thing-quality looked-thing
+                                      'contents)
+                       'mass)))]
             [else ""])))
 
 (define (make-look-mudsocket-command-for-thing commanding-thing)
@@ -77,8 +95,10 @@
          [else
           (add-string-to-thing-quality!
            (format
-            "There are multiple here things matching \"a\": ~a."
-            (list-thing-names matching-things)))])])))
+            "There are multiple here things matching \"~a\": ~a."
+            command-arguments-line
+            (list-thing-names matching-things))
+           commanding-thing 'mudsocket-output-buffer)])])))
 
 (define (make-move-mudsocket-command-for-thing commanding-thing)
   (λ (command-arguments)

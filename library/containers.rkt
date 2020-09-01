@@ -9,6 +9,7 @@
          add-element-to-thing-contents!
          remove-element-from-thing-contents!
          move-thing-into-thing!
+         move-things-into-thing!
          add-container-procedures-to-thing!
          add-container-procedures-to-universe!)
 
@@ -100,13 +101,32 @@
              (element-in-thing-quality? moved-thing
                                         moved-thing-container
                                         'contents))
+    (use-thing-procedure 'moving-thing-into-thing
+                         moved-thing
+                         'null
+                         destination-thing
+                         #:pass-symbol #f)
     (remove-element-from-thing-quality! moved-thing
                                         moved-thing-container
                                         'contents))
   (add-element-to-thing-quality! moved-thing
                                  destination-thing
                                  'contents)
-  (set-thing-quality! moved-thing 'container destination-thing))
+  (set-thing-quality! moved-thing 'container destination-thing)
+  (use-thing-procedure 'moved-thing-from-thing
+                       moved-thing
+                       'null
+                       moved-thing-container
+                       #:pass-symbol #f))
+
+
+
+(define (move-things-into-thing! moved-things changed-thing)
+  (map (λ (moved-thing)
+         (move-thing-into-thing! moved-thing
+                                 changed-thing))
+       moved-things))
+
 
 (define (add-container-procedures-to-x! x)
   (define container-procedures

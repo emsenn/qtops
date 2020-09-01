@@ -9,6 +9,8 @@
 (provide thing-name=?
          thing-adjectives
          thing-nouns
+         set-thing-nouns!
+         set-thing-adjectives!
          thing-matches-term?
          use-thing-procedure
          use-thing-quality-procedure
@@ -18,6 +20,8 @@
          add-procedures-to-thing!
          thing-has-universe?
          thing-has-quality?
+         add-qualities-to-thing!
+         add-qualities-to-things!
          thing-quality
          thing-quality-head
          thing-quality-tail
@@ -36,6 +40,9 @@
          things-with-quality
          search-things-by-term
          search-thing-quality-by-term
+         add-string-to-quality-of-things!
+         add-string-to-quality-of-things-with-quality!
+         add-string-to-quality-of-things-with-quality-in-quality-of-thing!
          )
 
 (define (thing-name=? queried-thing given-string)
@@ -62,6 +69,32 @@
     [(hash-has-key? queried-thing-grammar 'nouns)
      (hash-ref queried-thing-grammar 'nouns)]
     [else '()]))
+
+(define (set-thing-nouns! changed-thing
+                          new-nouns)
+  (unless (thing? changed-thing)
+    (raise-argument-error 'set-thing-nouns!
+                          "thing?" changed-thing))
+  (unless (and (list? new-nouns)
+               (andmap string? new-nouns))
+    (raise-argument-error 'set-thing-nouns!
+                          "listof string?" new-nouns))
+  (hash-set! (thing-grammar changed-thing)
+             'nouns
+             new-nouns))
+
+(define (set-thing-adjectives! changed-thing
+                          new-adjectives)
+  (unless (thing? changed-thing)
+    (raise-argument-error 'set-thing-adjectives!
+                          "thing?" changed-thing))
+  (unless (and (list? new-adjectives)
+               (andmap string? new-adjectives))
+    (raise-argument-error 'set-thing-adjectives!
+                          "listof string?" new-adjectives))
+  (hash-set! (thing-grammar changed-thing)
+             'adjectives
+             new-adjectives))
 
 (define (thing-matches-term? queried-thing
                              queried-term)
@@ -298,6 +331,16 @@
         'thing-quality
         queried-thing
         queried-quality)])))
+
+(define (add-qualities-to-thing! qualities-list changed-thing)
+  (map (λ (qual)
+         (add-quality-to-thing! qual changed-thing))
+       qualities-list))
+
+(define (add-qualities-to-things! qualities-list changed-things)
+  (map (λ (changed-thing)
+         (add-qualities-to-thing! qualities-list changed-thing))
+       changed-things))
 
 (define (thing-quality-head queried-thing
                             queried-quality)
@@ -539,3 +582,34 @@
                                       "listof thing?"))
     (search-things-by-term searched-thing-quality
                            queried-term)))
+
+(define (add-string-to-quality-of-things! new-string
+                                          changed-quality
+                                          changed-things)
+  (map
+   (λ (changed-thing)
+     (add-string-to-thing-quality! new-string
+                                   changed-thing
+                                   changed-quality))
+   changed-things))
+(define (add-string-to-quality-of-things-with-quality!
+         new-string
+         target-quality
+         filter-quality
+         things-list)
+  (add-string-to-quality-of-things!
+   new-string
+   target-quality
+   (things-with-quality things-list filter-quality)))
+
+(define (add-string-to-quality-of-things-with-quality-in-quality-of-thing!
+         new-string
+         target-quality
+         filter-quality
+         list-quality
+         target-thing)
+  (add-string-to-quality-of-things-with-quality!
+   new-string
+   target-quality
+   filter-quality
+   (thing-quality target-thing list-quality)))

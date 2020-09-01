@@ -9,12 +9,15 @@
 
 (define (create-universe [name (§ "Universe-"
 				  (generate-simple-id 3))]
-			 [events '()])
+			 [events (list (list))])
   (unless (string? name)
     (raise-argument-error 'create-universe
                           "string?" name))
   (unless (and (list? events)
-               (andmap procedure? events))
+               (andmap list? events)
+               (andmap
+                (λ (e) (andmap procedure? e))
+                events))
     (raise-argument-error 'create-universe
                           "listof procedure?" events))
   (log-debug "Creating universe ~a." name)

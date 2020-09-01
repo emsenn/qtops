@@ -13,7 +13,12 @@
  symbol-replace
  join-strings-and-symbols-as-symbol
  generate-simple-id
- build-procedures-list)
+ build-procedures-list
+ random-element)
+
+
+(define (random-element given-list)
+  (list-ref given-list (random (length given-list))))
 
 
 (define (build-procedures-list . procedures-list)

@@ -12,8 +12,14 @@
                           "universe?"
                           ticked-universe))
   (increment-universe-time! ticked-universe)
-  (define current-events (universe-schedule ticked-universe))
-  (set-universe-schedule! ticked-universe '())
+  (define current-events
+    (first (universe-schedule ticked-universe)))
+  (set-universe-schedule!
+   ticked-universe
+   (cond
+     [(pair? (cdr (universe-schedule ticked-universe)))
+      (cdr (universe-schedule ticked-universe))]
+     [else (list (list))]))
   (let loop ()
     (unless (null? current-events)
       (define current-event (car current-events))
