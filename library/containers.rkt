@@ -144,7 +144,9 @@
      (cons 'remove-element-from-thing-contents!
            remove-element-from-thing-contents!)
      (cons 'move-thing-into-thing!
-           move-thing-into-thing!)))
+           move-thing-into-thing!)
+     (cons 'move-things-into-thing!
+           move-things-into-thing!)))
   (log-debug "Adding container procedures to ~a."
              (cond [(universe? x)
                     (universe-name x)]

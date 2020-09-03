@@ -5,7 +5,8 @@
 
 (provide create-universe
          create-thing
-         create-thing-creator-for-universe)
+         create-thing-creator-for-universe
+         create-thing-creator-for-thing)
 
 (define (create-universe [name (§ "Universe-"
 				  (generate-simple-id 3))]
@@ -59,6 +60,14 @@
                   #:grammar grammar
                   #:qualities qualities
                   #:procedures procedures)))
+
+(define (create-thing-creator-for-thing target-thing)
+  (cond
+    [(universe? (thing-universe target-thing))
+     (create-thing-creator-for-universe
+      (thing-universe target-thing))]
+    [else
+     create-thing]))
 
 (module+ test
   (require rackunit)

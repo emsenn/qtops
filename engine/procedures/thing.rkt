@@ -83,6 +83,31 @@
              'nouns
              new-nouns))
 
+(define (add-noun-to-thing! changed-thing
+                            new-noun)
+  (define changed-thing-grammar
+    (thing-grammar changed-thing))
+  (hash-set! changed-thing-grammar
+             'nouns
+             (cond
+               [(hash-has-key? changed-thing-grammar 'nouns)
+                (append (hash-ref changed-thing-grammar 'nouns)
+                        (list noun))]
+               [else
+                (list noun)])))
+
+(define (add-nouns-to-thing! changed-thing
+                             new-nouns)
+  (define changed-thing-grammar
+    (thing-grammar changed-thing))
+  (hash-set! changed-thing-grammar
+             'nouns
+             (cond
+               [(hash-has-key? changd-thing-grammar 'nouns)
+                (append (hash-ref changed-thing-grammar 'nouns)
+                        new-nouns)]
+               [else new-nouns])))
+
 (define (set-thing-adjectives! changed-thing
                           new-adjectives)
   (unless (thing? changed-thing)
@@ -100,8 +125,12 @@
                              queried-term)
           queried-term (thing-name queried-thing)
   (define queried-thing-name (thing-name queried-thing))
+  (printf "Checking if ~a matches ~a\n"
+             queried-thing-name
+             queried-term)
   (cond
     [(string=? queried-thing-name queried-term)
+     (printf "Term matches name exactly")
      #t]
     [else
      (define split-queried-term
@@ -125,17 +154,23 @@
                 queried-thing-nouns)
         (cond
           [(> (length split-queried-term) 1)
+           (printf "Multiword term, looking at adjectives.\n")
            (define queried-thing-adjectives
              (thing-adjectives queried-thing))
            (cond
              [(> (length queried-thing-adjectives) 0)
               (define queried-term-adjectives
                 (reverse (cdr (reverse split-queried-term))))
+              (printf "Comparing ~a to ~a\n"
+                      queried-thing-adjectives
+                      queried-term-adjectives)
               (andmap
                (λ (adjective)
-                 (not (null?
-                       (member adjective
-                               queried-thing-adjectives))))
+                 (cond
+                   [(eq? #f (member adjective
+                                    queried-thing-adjectives))
+                    #f]
+                   [else #t]))
                queried-term-adjectives)]
              [else #f])]
           [else #t])]
