@@ -134,6 +134,7 @@
 			     (car quality-pair)
                              (cdr quality-pair)))
        (list
+        (cons 'mass 1)
         (cons 'mudsocket-in in)
         (cons 'mudsocket-out out)
         (cons 'mudsocket-ip ip)
@@ -147,11 +148,9 @@
         (cons 'mudsocket-sender
               (make-mudsocket-sender-for-thing changed-thing))))
   (set-thing-name! changed-thing
-                   (string-join
-                    (list ip
-                          ":"
-                          (number->string port))
-                    "")))
+                   (string-join (list "User-#"
+                                      (generate-simple-id 3))
+                                "")))
 
 (define (make-mudsocket-tick-event-for-universe target-universe
                                                 [port 4242])

@@ -10,7 +10,11 @@
          thing-adjectives
          thing-nouns
          set-thing-nouns!
+         add-noun-to-thing!
+         add-nouns-to-thing!
          set-thing-adjectives!
+         add-adjective-to-thing!
+         add-adjectives-to-thing!
          thing-matches-term?
          use-thing-procedure
          use-thing-quality-procedure
@@ -82,9 +86,7 @@
   (hash-set! (thing-grammar changed-thing)
              'nouns
              new-nouns))
-
-(define (add-noun-to-thing! changed-thing
-                            new-noun)
+(define (add-noun-to-thing! new-noun changed-thing)
   (define changed-thing-grammar
     (thing-grammar changed-thing))
   (hash-set! changed-thing-grammar
@@ -92,18 +94,17 @@
              (cond
                [(hash-has-key? changed-thing-grammar 'nouns)
                 (append (hash-ref changed-thing-grammar 'nouns)
-                        (list noun))]
+                        (list new-noun))]
                [else
-                (list noun)])))
+                (list new-noun)])))
 
-(define (add-nouns-to-thing! changed-thing
-                             new-nouns)
+(define (add-nouns-to-thing! new-nouns changed-thing)
   (define changed-thing-grammar
     (thing-grammar changed-thing))
   (hash-set! changed-thing-grammar
              'nouns
              (cond
-               [(hash-has-key? changd-thing-grammar 'nouns)
+               [(hash-has-key? changed-thing-grammar 'nouns)
                 (append (hash-ref changed-thing-grammar 'nouns)
                         new-nouns)]
                [else new-nouns])))
@@ -120,6 +121,29 @@
   (hash-set! (thing-grammar changed-thing)
              'adjectives
              new-adjectives))
+
+(define (add-adjective-to-thing! new-adjective changed-thing)
+  (define changed-thing-grammar
+    (thing-grammar changed-thing))
+  (hash-set! changed-thing-grammar
+             'adjectives
+             (cond
+               [(hash-has-key? changed-thing-grammar 'adjectives)
+                (append (hash-ref changed-thing-grammar 'adjectives)
+                        (list new-adjective))]
+               [else
+                (list new-adjective)])))
+
+(define (add-adjectives-to-thing! new-adjectives changed-thing)
+  (define changed-thing-grammar
+    (thing-grammar changed-thing))
+  (hash-set! changed-thing-grammar
+             'adjectives
+             (cond
+               [(hash-has-key? changed-thing-grammar 'adjectives)
+                (append (hash-ref changed-thing-grammar 'adjectives)
+                        new-adjectives)]
+               [else new-adjectives])))
 
 (define (thing-matches-term? queried-thing
                              queried-term)
