@@ -1,5 +1,7 @@
 #lang racket
 
+(require "../main.rkt")
+
 (define (make-who-mudsocket-command-for-thing
 	 commanding-thing)
   (λ (args)

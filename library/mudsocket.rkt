@@ -1,5 +1,4 @@
 #lang racket
-
 (require "../engine/main.rkt")
 
 (provide make-mudsocket-tick-event-for-universe)
@@ -124,17 +123,16 @@
 	  (flush-output receiving-thing-mudsocket-out)
 	  (set-thing-quality! receiving-thing 'mudsocket-output-buffer "")))))
 
-(define (change-thing-into-mudsocket-client! changed-thing
-                                             in out
-                                             ip port)
+(define (build-mudsocket-client! client
+                                 in out
+                                 ip port)
   (map (λ (quality-pair)
          (add-quality-to-thing! (car quality-pair)
-                                changed-thing)
-	 (set-thing-quality! changed-thing
-			     (car quality-pair)
+                                client)
+         (set-thing-quality! client
+                             (car quality-pair)
                              (cdr quality-pair)))
        (list
-        (cons 'mass 1)
         (cons 'mudsocket-in in)
         (cons 'mudsocket-out out)
         (cons 'mudsocket-ip ip)
@@ -142,15 +140,15 @@
         (cons 'mudsocket-output-buffer "")
         (cons 'mudsocket-commands
               (make-hash
-               (make-mudsocket-commands-for-thing changed-thing)))
+               (make-mudsocket-commands-for-thing client)))
         (cons 'mudsocket-parser
-              (make-mudsocket-parser-for-thing changed-thing))
+              (make-mudsocket-parser-for-thing client))
         (cons 'mudsocket-sender
-              (make-mudsocket-sender-for-thing changed-thing))))
-  (set-thing-name! changed-thing
-                   (string-join (list "User-#"
-                                      (generate-simple-id 3))
-                                "")))
+              (make-mudsocket-sender-for-thing client))))
+  (set-thing-name! client
+                   (string-join
+                    (list "U#" (generate-simple-id 3)) ""))
+  client)
 
 (define (make-mudsocket-tick-event-for-universe target-universe
                                                 [port 4242])
@@ -174,15 +172,11 @@
 	(tcp-addresses mudsocket-in #t))
       (log-info "MUDSocket accepted a new connection from ~a:~a"
 		remote-ip remote-port)
-      (define connected-thing (create-thing "MUDSocket client"
-                                            ticked-universe))
-      (change-thing-into-mudsocket-client! connected-thing
-                                           mudsocket-in
-                                           mudsocket-out
-                                           remote-ip
-                                           remote-port)
-      (log-debug "Changed ~a into a proper MUDsocket client."
-		 (thing-name connected-thing))
+      (define connected-thing
+        (build-mudsocket-client!
+         (create-thing "MUDSocket client" ticked-universe)
+         mudsocket-in mudsocket-out
+         remote-ip remote-port))
       (set! current-connections (append (list connected-thing)
                                         current-connections))
       (log-debug "Added ~a into the list of current connections."

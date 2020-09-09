@@ -47,6 +47,7 @@
          add-string-to-quality-of-things!
          add-string-to-quality-of-things-with-quality!
          add-string-to-quality-of-things-with-quality-in-quality-of-thing!
+         hash-things-by-quality
          )
 
 (define (thing-name=? queried-thing given-string)
@@ -672,3 +673,14 @@
    target-quality
    filter-quality
    (thing-quality target-thing list-quality)))
+(define (hash-things-by-quality listed-things
+                                sort-quality)
+  (define hashed-things (make-hash))
+  (map
+   (λ (listed-thing)
+     (hash-set! hashed-things
+                (thing-quality listed-thing
+                               sort-quality)
+                listed-thing))
+   listed-things)
+  hashed-things)

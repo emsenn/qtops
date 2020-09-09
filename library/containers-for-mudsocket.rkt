@@ -3,45 +3,39 @@
 (require "../engine/main.rkt")
 
 
-(provide add-containers-for-mudsocket-procedures-to-thing!
+(provide move-thing-from-thing!
+         move-thing-into-thing!
+         add-containers-for-mudsocket-procedures-to-thing!
          add-containers-for-mudsocket-procedures-to-universe!)
 
-(define (moving-thing-into-thing moving-thing destination-thing)
-  (add-string-to-quality-of-things-with-quality!
-   (format "~a is moving to ~a."
-           (thing-name moving-thing)
-           (thing-name destination-thing))
-   'mudsocket-output-buffer
-   'mudsocket-output-buffer
-   (remove moving-thing
-           (thing-quality
-            (thing-quality moving-thing 'container)
-            'contents))))
+(define (move-thing-from-thing! mover origin)
+  (set-thing-quality!
+   origin 'contents
+   (remove mover
+           (thing-quality origin 'contents)))
+  (set-thing-quality!
+   mover 'container
+   (void)))
 
-(define (moved-thing-from-thing moved-thing old-container)
-  (add-string-to-quality-of-things-with-quality!
-   (format "~a has moved here from ~a."
-           (thing-name moved-thing)
-           (cond
-             [(thing? old-container)
-              (thing-name old-container)]
-             [else "someplace"]))
-   'mudsocket-output-buffer
-   'mudsocket-output-buffer
-   (remove moved-thing
-           (thing-quality
-            (thing-quality moved-thing 'container)
-            'contents))))
+(define (move-thing-into-thing! mover destination)
+  (when (and (thing-has-quality? mover 'container)
+             (thing? (thing-quality mover 'container)))
+    (move-thing-from-thing! mover (thing-quality mover 'container)))
+  (set-thing-quality!
+   destination 'contents
+   (append (thing-quality destination 'contents)
+           (list mover)))
+  (set-thing-quality! mover 'container destination))
 
 (define (add-containers-for-mudsocket-procedures-to-x! x)
   (define cfMs-procedures
     (list
-     (cons 'moving-thing-into-thing
-           moving-thing-into-thing)
-     (cons 'moved-thing-from-thing
-           moved-thing-from-thing)
+     (cons 'move-thing-from-thing!
+           move-thing-from-thing!)
+     (cons 'move-thing-into-thing!
+           move-thing-from-thing!)
      ))
-  (log-debug "Adding containers for MUDSocket procedures to ~a."
+  (log-debug "Adding Containers for MUDSocket procedures to ~a."
              (cond [(universe? x)
                     (universe-name x)]
                    [(thing? x)

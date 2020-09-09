@@ -19,8 +19,8 @@
   (log-debug "Moving ~a forward ~a moment~a in time."
              (universe-name incremented-universe)
              addition
-             (cond [(> 1 addition) "s "]
-                   [else " "]))
+             (cond [(> 1 addition) "s"]
+                   [else ""]))
   (set-universe-time! incremented-universe
                       (+ (universe-time incremented-universe)
                          addition)))
