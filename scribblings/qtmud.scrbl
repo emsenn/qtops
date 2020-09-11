@@ -14,5 +14,5 @@ There's an IRC channnel, #qtmud on irc.freenode.net, but I'm usually not there. 
 
 @table-of-contents[]
 
-@include-section["engine/main.scrbl"]
-@include-section["library/main.scrbl"]
+@include-section["engine.scrbl"]
+@include-section["qualities/main.scrbl"]
