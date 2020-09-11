@@ -12,7 +12,9 @@
   (t 'set-procedure! 'name (λ () n)))
 (define (term=? t)
   (define (name=? l)
-    (string=? (t 'name) l))
+    (or
+     (string=? (string-downcase (t 'name)) l)
+     (string=? (t 'name) l)))
   (define real-term=?
     (cond
       [(t 'has-procedure? 'term=?)

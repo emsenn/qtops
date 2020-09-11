@@ -24,6 +24,14 @@ Returns a procedure which accepts a @racket[symbol] and @racket[procedure] as ar
 Returns a procedure which accepts a pair of @racket[symbol] and @racket[procedure], to be passed to @racket[t]'s Racket[set-procedure!] procedure.
 }
 
+@defproc[(remove-procedure [t procedure?]) (procedure?)]{
+Returns a procedure which accepts a @racket[symbol] and removes the corresponding key from the @racket[t]'s procedures.
+}
+
+@defproc[(has-procedure [t procedure?]) (procedure?)]{
+Returns a procedure which accepts a @racket[symbol] and returns a boolean indicating whether @racket[t] has the provided symbol as a procedure.
+}
+
  @(define qtmud-eval (make-base-eval))
  @interaction-eval[#:eval qtmud-eval
                    (require "./engine/main.rkt")]

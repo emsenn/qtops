@@ -14,7 +14,7 @@
   (log-debug "Removing ~a from contents of ~a" c t)
   (t 'set-contents! (remove c (t 'contents))))
 (define ((search-contents-by-term t) l)
-  (filter values (map (λ (q) (when (q 'term=? l) q))
+  (filter procedure? (map (λ (q) (when (q 'term=? l) q))
                       (t 'contents))))
 
 
@@ -26,10 +26,14 @@
 (define ((move-thing! t) d)
   (when (and (t 'has-procedure? 'container)
              (procedure? (t 'container)))
-    ((t 'container) 'remove-content t))
+    ((t 'container) 'remove-content! t))
   (d 'add-content! t)
   (t 'set-container! d))
 
+(define ((message-container-contents! t) m)
+  (map (λ (t) (when (t 'has-procedure? 'message!)
+                (t 'message! m)))
+       ((t 'container) 'contents)))
 
 (define (make-content-procedures t)
   (log-debug "Making content procedures for ~a" t)
@@ -45,4 +49,6 @@
   (list
    (cons 'container (container t))
    (cons 'set-container! (set-container! t))
-   (cons 'move-thing! (move-thing! t))))
+   (cons 'move-thing! (move-thing! t))
+   (cons 'message-container-contents!
+         (message-container-contents! t))))

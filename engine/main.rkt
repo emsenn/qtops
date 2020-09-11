@@ -7,6 +7,9 @@
   ;(log-debug "Querying procedures of ~a" t)
   (t 'call (λ (T) T)))
 
+(define ((procedure t) k)
+  (hash-ref (t 'procedures) k))
+
 (define ((set-procedure! t) k p)
   ;(log-debug "Setting procedure ~a of ~a to ~a" k t p)
   (t 'call (λ (T) (hash-set! T k p))))
@@ -31,6 +34,7 @@
       [(hash-has-key? T p) (apply (hash-ref T p) a)]
       [else (printf "No procedure ~a" p)]))
   (hash-set! T 'call (λ (p) (p T)))
+  (hash-set! T 'procedure (procedure t))
   (hash-set! T 'procedures (procedures t))
   (hash-set! T 'set-procedure! (set-procedure! t))
   (hash-set! T 'set-procedures! (set-procedures! t))

@@ -20,24 +20,25 @@
      (t 'message! "Looking inside things doesn't work yet.")]
     [(hash-has-key? a 'line)
      (define l (hash-ref a 'line))
-     (define e (list))
-     (define E! (λ (q) (set! e (append e q))))
-     (when (t 'has-procedure? 'container)
-       (define k (t 'container))
-       (E! (list k))
-       (when (k 'has-procedure? 'contents)
-         (E! (k 'contents))))
-     (define m ((t 'universe) 'search-things-by-term e l))
+     (log-debug "Trying to look at ~a" l)
+     (define m ((t 'container) 'search-contents-by-term l))
+     (when ((t 'container) 'term=? l)
+       (set! m (append m (list (t 'container)))))
+     (map
+      (λ (e) (when (string=? e l)
+               (set! m (append m (list ((t 'container) 'exit e))))))
+      (hash-keys ((t 'container) 'exits)))
+     (log-debug "Matches are ~a" m)
      (cond
        [(null? m)
         (t 'message! (format "You cannot see \"~a\"." l))]
        [(= (length m) 1)
-        (define m (first m))
+        (define n (car m))
         (cond
-          [(m 'has-procedure? 'looked-at-by-thing)
-           (m 'looked-at-by-thing t)]
+          [(n 'has-procedure? 'looked-at-by-thing)
+           (n 'looked-at-by-thing t)]
           [else
-           (t 'look-thing m)])]
+           (t 'look-thing n)])]
        [else
         (t 'message!
            (format "There are multiple matches for \"~a\": ~a."

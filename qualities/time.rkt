@@ -69,7 +69,7 @@
                (append (t 'schedule)
                        (list (list)))))
           new-moments)
-     (t 'schedule-event event moment)]))
+     (t 'schedule-event! event moment)]))
 
 
 (define (make-time-procedures t [r 0.2])
