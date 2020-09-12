@@ -10,6 +10,6 @@
                  (t 'procedure 'animate) f))
 
 
-(define (make-animate-procedures t a)
+(define (make-animate-procedures t a f)
   (list
-   (cons 'animate (animate t a))))
+   (cons 'animate (animate t a f))))
