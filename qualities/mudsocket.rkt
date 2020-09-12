@@ -40,6 +40,7 @@
   (client 'set-procedures!
           (make-mudsocket-client-procedures client in out rip rport))
   (client 'set-name! "MUDSocket Client")
+  (client 'set-mudsocket-commands! (make-default-mudsocket-commands client))
   (t 'add-connection! client)
   (when ((t 'universe) 'has-procedure? 'accept-mudsocket-connection)
     ((t 'universe) 'accept-mudsocket-connection client))
@@ -69,7 +70,7 @@
               [(string? cline)
                (c 'parse-mudsocket-line (string-trim cline))]
               [(eof-object? cline)
-               (t 'remove-connection c)]))])
+               (t 'remove-connection! c)]))])
        (when (> (string-length (c 'mudsocket-output-buffer)) 0)
          (c 'send-mudsocket-output-buffer)))
      (t 'connections))
@@ -77,7 +78,7 @@
       (t 'accept-connection!))
     ((t 'universe) 'schedule-event! (t 'tick))))
 
-(define (make-mudsocket-procedures t [p 4244])
+(define (make-mudsocket-procedures t [p 4242])
   (list
    (cons 'listener (listener t p))
    (cons 'connections (connections t))

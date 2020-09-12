@@ -1,6 +1,7 @@
 #lang racket
 
-(require "client.rkt"
+(require "animate.rkt"
+         "client.rkt"
          "contents.rkt"
          "contents-for-mudsocket.rkt"
          "description.rkt"
@@ -13,7 +14,8 @@
          "sight-for-mudsocket.rkt"
          "universe.rkt")
 
-(provide (all-from-out "client.rkt"
+(provide (all-from-out "animate.rkt"
+                       "client.rkt"
                        "contents.rkt"
                        "contents-for-mudsocket.rkt"
                        "description.rkt"
