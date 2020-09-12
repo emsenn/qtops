@@ -16,7 +16,8 @@
     (R (format "[  ~a  ]\n" (o 'name))))
   (when (o 'has-procedure? 'description)
     (R (format "~a\n" (o 'description))))
-  (when (o 'has-procedure? 'exits)
+  (when (and (o 'has-procedure? 'exits)
+             (not (null? (hash-keys (o 'exits)))))
     (R (format "  Exits: ~a\n"
                (string-join (hash-keys (o 'exits)) ", "))))
   (when c

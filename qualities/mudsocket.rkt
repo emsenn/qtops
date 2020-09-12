@@ -58,7 +58,7 @@
      (λ (c)
        (cond
          [(port-closed? (c 'mudsocket-in))
-          (t 'remove-connection c)]
+          (t 'remove-connection! c)]
          [(byte-ready? (c 'mudsocket-in))
           (with-handlers
             ([exn:fail:read?
