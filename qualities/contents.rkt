@@ -26,7 +26,27 @@
 (define ((move-thing! t) d)
   (when (and (t 'has-procedure? 'container)
              (procedure? (t 'container)))
-    ((t 'container) 'remove-content! t))
+    ((t 'container) 'remove-content! t)
+        (map
+     (λ (n)
+       (n 'message! (format "~a moves to: ~a"
+                           (t 'name)
+                           (d 'name))))
+     (filter procedure?
+             (map
+              (λ (w)
+                (if (w 'has-procedure? 'message!) w #f))
+              ((t 'container) 'contents)))))
+  (map
+   (λ (n)
+     (n 'message! (format "~a moves here from: ~a"
+                          (t 'name)
+                          ((t 'container) 'name))))
+   (filter procedure?
+           (map
+            (λ (w)
+              (if (w 'has-procedure? 'message!) w #f))
+            (d 'contents))))
   (d 'add-content! t)
   (t 'set-container! d))
 

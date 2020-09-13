@@ -22,8 +22,10 @@
      (define l (hash-ref a 'line))
      (log-debug "Trying to look at ~a" l)
      (define m ((t 'container) 'search-contents-by-term l))
+     (log-debug "BING")
      (when ((t 'container) 'term=? l)
        (set! m (append m (list (t 'container)))))
+     (log-debug "BANG")
      (map
       (λ (e) (when (string=? e l)
                (set! m (append m (list ((t 'container) 'exit e))))))
@@ -42,7 +44,12 @@
        [else
         (t 'message!
            (format "There are multiple matches for \"~a\": ~a."
-                   l m))])]))
+                   l (string-join (map
+                      (λ (t)
+                        (if (t 'has-procedure? 'name)
+                            (t 'name)
+                            t))
+                      m) ", ")))])]))
 
 (define (make-sight-mudsocket-commands t)
   (list

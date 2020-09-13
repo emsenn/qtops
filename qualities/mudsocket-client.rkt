@@ -10,7 +10,6 @@
      (λ (b)
        (t 'set-mudsocket-output-buffer! b)))
   (λ (b)
-    (log-debug "Setting mudsocket-output-buffer of ~a to ~a" t b)
     (t 'set-procedure! 'mudsocket-output-buffer (λ () b))))
 (define (append-mudsocket-output-buffer! t)
   (t 'set-procedure! 'append-output-buffer!

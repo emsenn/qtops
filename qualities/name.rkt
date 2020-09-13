@@ -10,26 +10,21 @@
                           "string?"
                           n))
   (t 'set-procedure! 'name (λ () n)))
-(define (term=? t)
-  (define (name=? l)
-    (or
-     (string=? (string-downcase (t 'name)) l)
-     (string=? (t 'name) l)))
-  (define real-term=?
-    (cond
-      [(t 'has-procedure? 'term=?)
-       (define cterm=? (t 'term=?))
-       (λ (l)
-         (ormap (λ (p) (p l))
-                (list cterm=? name=?)))]
-      [else
-       name=?]))
-  (λ (l)
-    (real-term=? l)))
-
+(define (name=? t)
+  (define (real-name=? l)
+    (or (string=? (t 'name) l)
+        (string=? (string-downcase (t 'name)) l)))
+  (cond
+    [(t 'has-procedure? 'term=?)
+     (define old-term=? (t 'procedure 'term=?))
+     (t 'set-procedure! 'term=?
+        (λ (l) (or (old-term=? l) (t 'name=?))))]
+    [else
+     (t 'set-procedure! 'term=? real-name=?)])
+  real-name=?)
 
 (define (make-name-procedures t)
   (list
    (cons 'name (name t))
    (cons 'set-name! (set-name! t))
-   (cons 'term=? (term=? t))))
+   (cons 'name=? (name=? t))))
