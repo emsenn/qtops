@@ -7,11 +7,11 @@
 (define ((set-contents! t) C)
   (log-debug "Setting contents of ~a to ~a" t C)
   (t 'set-procedure! 'contents (λ () C)))
+(define ((add-contents! t) C)
+  (t 'set-contents! (append (t 'contents) C)))
 (define ((add-content! t) c)
-  (log-debug "Adding ~a to contents of ~a" c t)
-  (t 'set-contents! (append (t 'contents) (list c))))
+  (t 'add-contents! (list c)))
 (define ((remove-content! t) c)
-  (log-debug "Removing ~a from contents of ~a" c t)
   (t 'set-contents! (remove c (t 'contents))))
 (define ((search-contents-by-term t) l)
   (filter procedure? (map (λ (q) (when (q 'term=? l) q))
@@ -30,8 +30,12 @@
         (map
      (λ (n)
        (n 'message! (format "~a moves to: ~a"
-                           (t 'name)
-                           (d 'name))))
+                            (if (t 'has-procedure? 'name)
+                                (t 'name)
+                                "Someone")
+                            (if (d 'has-procedure? 'name)
+                                (d 'name)
+                                "someplace"))))
      (filter procedure?
              (map
               (λ (w)
@@ -40,8 +44,15 @@
   (map
    (λ (n)
      (n 'message! (format "~a moves here from: ~a"
-                          (t 'name)
-                          ((t 'container) 'name))))
+                          (if (t 'has-procedure? 'name)
+                              (t 'name)
+                              "Something")
+                          (if (and (t 'has-procedure? 'container)
+                                   (procedure? (t 'container))
+                                   ((t 'container) 'has-procedure?
+                                                   'name))
+                              ((t 'container) 'name)
+                              "someplace"))))
    (filter procedure?
            (map
             (λ (w)
@@ -60,6 +71,7 @@
   (list
    (cons 'contents (contents t))
    (cons 'set-contents! (set-contents! t))
+   (cons 'add-contents! (add-contents! t))
    (cons 'add-content! (add-content! t))
    (cons 'remove-content! (remove-content! t))
    (cons 'search-contents-by-term (search-contents-by-term t))))

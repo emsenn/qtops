@@ -5,11 +5,9 @@
 
 (define ((description t)) "This is a thing.")
 (define ((set-description! t) n)
-  (unless (string? n)
-    (raise-argument-error 'set-name!
-                          "string?"
-                          n))
-  (t 'set-procedure! 'description (λ () n)))
+  (if (string? n)
+      (t 'set-procedure! 'description (λ () n))
+      (t 'set-procedure! 'description n)))
 
 (define (make-description-procedures t)
   (list

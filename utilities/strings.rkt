@@ -2,7 +2,14 @@
 
 (provide §)
 
-(define (§ . s)
-  (unless (andmap string? s)
-    (raise-argument-error '§ "listof string?" s))
-  (string-join s ""))
+(define (§ . S)
+  (λ ()
+    (define r "")
+     (map
+      (λ (s)
+        (set! r
+              (string-append
+               r (if (string? s) s
+                     (format "~a" (s))))))
+      S)
+     r))

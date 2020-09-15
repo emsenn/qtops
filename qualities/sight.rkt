@@ -8,8 +8,11 @@
   (define c
     (cond
       [(o 'has-procedure? 'contents)
-       (filter values
-               (map (λ (t) (when (t 'has-procedure? 'name) t))
+       (filter procedure?
+               (map (λ (t) (when (and (t 'has-procedure? 'name)
+                                      (t 'has-procedure? 'notable?)
+                                      (t 'notable?))
+                             t))
                     (o 'contents)))]
       [else #f]))
   (when (o 'has-procedure? 'name)
