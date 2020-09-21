@@ -22,7 +22,6 @@
   (λ () (t 'set-mudsocket-output-buffer! "")))
 
 (define ((send-mudsocket-output-buffer t))
-  (log-debug "Sending ~a their mudsocket-output-buffer" t)
   (define mob (t 'mudsocket-output-buffer))
   (with-handlers
     ([exn? (λ (e) (log-warning "~a" e))])
@@ -107,7 +106,6 @@
        (string-join (hash-ref results 'line))))
     results)
   (λ (l)
-    (log-debug "Parsing \"~a\" from ~a." l t)
     (define reply "")
     (define cmds (t 'mudsocket-commands))
     (when (> (string-length l) 0)
@@ -123,7 +121,8 @@
 
 
 (define (make-mudsocket-client-procedures t in out ip port)
-  (log-debug "Making MUDSocket client procedurse for ~a" t)
+  (log-debug "Making MUDSocket client procedures for ~a"
+             (if (t 'has-procedure? 'name) (t 'name) t))
   (list
    (cons 'mudsocket-in (λ () in))
    (cons 'mudsocket-out (λ () out))

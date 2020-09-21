@@ -24,6 +24,8 @@
   c)
 
 (define (make-universe-procedures t)
+  (log-debug "Making universe procedures for ~a."
+             (if (t 'has-procedure? 'name) (t 'name) t))
   (list
    (cons 'create-thing (create-thing t))
    (cons 'things (things t))

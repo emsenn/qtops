@@ -5,7 +5,6 @@
 
 (define ((contents t)) (list))
 (define ((set-contents! t) C)
-  (log-debug "Setting contents of ~a to ~a" t C)
   (t 'set-procedure! 'contents (λ () C)))
 (define ((add-contents! t) C)
   (t 'set-contents! (append (t 'contents) C)))
@@ -20,7 +19,6 @@
 
 (define ((container t)) (void))
 (define ((set-container! t) c)
-  (log-debug "Setting container of ~a to ~a" t c)
   (t 'set-procedure! 'container (λ () c)))
 
 (define ((move-thing! t) d)
@@ -66,18 +64,27 @@
                 (t 'message! m)))
        ((t 'container) 'contents)))
 
+(define ((message-contents! t) m)
+  (map (λ (t) (when (t 'has-procedure? 'message!)
+                (t 'message! m)))
+       (t 'contents)))
+
 (define (make-content-procedures t)
-  (log-debug "Making content procedures for ~a" t)
+  (log-debug "Making content procedures for ~a"
+             ((t 'with-procedure 'name)
+              #:alternate t))
   (list
    (cons 'contents (contents t))
    (cons 'set-contents! (set-contents! t))
    (cons 'add-contents! (add-contents! t))
    (cons 'add-content! (add-content! t))
    (cons 'remove-content! (remove-content! t))
-   (cons 'search-contents-by-term (search-contents-by-term t))))
+   (cons 'search-contents-by-term (search-contents-by-term t))
+   (cons 'message-contents! (message-contents! t))))
 
 (define (make-container-procedures t)
-  (log-debug "Making container procedures for ~a" t)
+  (log-debug "Making container procedures for ~a"
+             (if (t 'has-procedure? 'name) (t 'name) t))
   (list
    (cons 'container (container t))
    (cons 'set-container! (set-container! t))

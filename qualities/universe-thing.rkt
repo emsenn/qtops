@@ -4,7 +4,6 @@
 
 (define ((universe t))
   (void))
-
 (define ((set-universe! t) u)
   (t 'set-procedure! 'universe (λ () u)))
 

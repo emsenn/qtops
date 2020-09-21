@@ -62,7 +62,7 @@
           (t 'remove-connection! c)]
          [(byte-ready? (c 'mudsocket-in))
           (with-handlers
-            ([exn:fail:read?
+            ([exn:fail?
               (λ (e)
                 (log-warning "MUDSocket encountered issue."))])
             (define cline (read-line (c 'mudsocket-in)))
@@ -79,6 +79,8 @@
     ((t 'universe) 'schedule-event! (t 'tick))))
 
 (define (make-mudsocket-procedures t [p 4242])
+  (log-debug "Making MUDSocket procedures for ~a."
+             (if (t 'has-procedure? 'name) (t 'name) t))
   (list
    (cons 'listener (listener t p))
    (cons 'connections (connections t))

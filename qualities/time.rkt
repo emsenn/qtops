@@ -73,6 +73,8 @@
 
 
 (define (make-time-procedures t [r 0.2])
+  (log-debug "Making time procedures for ~a."
+             (if (t 'has-procedure? 'name) (t 'name) t))
   (list
    (cons 'stop-time (stop-time t))
    (cons 'suspend-time (suspend-time t))

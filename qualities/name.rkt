@@ -5,10 +5,6 @@
 
 (define ((name t)) "thing")
 (define ((set-name! t) n)
-  (unless (string? n)
-    (raise-argument-error 'set-name!
-                          "string?"
-                          n))
   (t 'set-procedure! 'name (λ () n)))
 (define (name=? t)
   (define (real-name=? l)
@@ -24,7 +20,8 @@
   real-name=?)
 
 (define (make-name-procedures t)
-  (list
-   (cons 'name (name t))
-   (cons 'set-name! (set-name! t))
-   (cons 'name=? (name=? t))))
+  (log-debug "Making name procedures for something.")
+              ;; hard to say what until we name it!
+  (list (cons 'name (name t))
+        (cons 'set-name! (set-name! t))
+        (cons 'name=? (name=? t))))
