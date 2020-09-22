@@ -4,7 +4,7 @@
 	  (for-label racket)
 	  (only-in (for-label "../things.rkt")))
 
-@(define qtmud-eval (make-base-eval))
+@(define qtops-eval (make-base-eval))
 
 @title{qtOps: perform operations on things with qualities}
 
@@ -14,7 +14,7 @@
 
 @emph{@bold{NOTE:}} qtOps is currently in the earliest stages of development, and is created as a hobby-project. Code is incomplete, buggy, likely to change, and unlikely to ever be suitable for use by others.
 
-@emph{@bold{qtOps}} stands for "qualities of things operations," and is a Racket collection implementing @emph{things} and performing operations on them. It also includes a collectio of @emph{qualities}, which extend or modify a @emph{thing}'s innate @emph{qualities}.
+@emph{@bold{qtOps}} stands for "qualities of things operations," and is a Racket collection implementing @emph{things} and performing operations on them. It also includes a collection of @emph{qualities}, which extend or modify a @emph{thing}'s innate @emph{qualities}.
 
 @emph{Things} and @emph{qualities} may be familiar if you know about @hyperlink["https://en.wikipedia.org/wiki/Entity_component_system"]{entity-component system} game engine architecture: things are roughly equivalent to entities, and equalities are roughly equivalent to components.
 
@@ -23,10 +23,10 @@ From an @hyperlink["https://en.wikipedia.org/wiki/Object-oriented_programming"]{
 If neither of those are familiar, a demonstration:
 
 
- @interaction-eval[#:eval qtmud-eval
+ @interaction-eval[#:eval qtops-eval
                    (require "./things.rkt")]
  @examples[
-	#:eval qtmud-eval
+	#:eval qtops-eval
      	(define honey (create-thing))
      	honey ;; things are procedures, that expect a symbol and one or more additional arguments
 	(honey 'set-procedure! 'sweetness (λ () 10))
@@ -46,3 +46,4 @@ There's an IRC channnel, #qtmud on irc.freenode.net, but I'm usually not there. 
 @table-of-contents[]
 
 @include-section["things.scrbl"]
+@include-section["qualities/qualities.scrbl"]

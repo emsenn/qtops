@@ -1,7 +1,5 @@
 #lang racket
 
-(require "../utilities/lists.rkt")
-
 (provide make-animate-procedures)
 
 (define ((animations t)) (list))
