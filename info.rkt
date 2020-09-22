@@ -1,9 +1,9 @@
 #lang info
 
-(define collection "qtmud")
+(define collection "qtops")
 
 (define pkg-desc
-  "A MUD engine.")
-(define version "0.4.1")
+  "Perform operations on things with qualities")
+(define version "0.1.0")
 (define pkg-authors '("emsenn"))
-(define scribblings '(("scribblings/qtmud.scrbl" (multi-page))))
+(define scribblings '(("scribblings/qtops.scrbl" (multi-page))))
