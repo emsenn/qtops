@@ -2,27 +2,27 @@
 
 (provide create-core-thing
          create-thing
-         procedures
-         procedure
-         set-procedure!
-         set-procedures!
-         remove-procedure!
-         has-procedure?
-         with-procedure
-         prerender-string)
+         >procedures
+         >procedure
+         >set-procedure!
+         >set-procedures!
+         >remove-procedure!
+         >has-procedure?
+         >with-procedure~~
+         >prerender-string)
 
-(define (procedures t)
+(define (>procedures t)
   (unless (procedure? t)
     (raise-argument-error 'procedures
                           "procedure?"
                           t))
   (λ ()
     (log-debug "querying procedures of ~a"
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t))
-    (t 'call (λ (T) T))))
+    (t 'call~ (λ (T) T))))
 
-(define (procedure t)
+(define (>procedure t)
   (unless (procedure? t)
     (raise-argument-error 'procedure
                           "procedure?"
@@ -34,19 +34,24 @@
                             k))
     (log-debug "querying ~a procedure of ~a"
                k
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t))
     (if (hash-has-key? (t 'procedures) k)
         (hash-ref (t 'procedures) k)
         (raise-result-error (string->symbol
-                             (t 'name))
+                             (if (hash-has-key? (t 'procedures) 'name)
+                                 (t 'name)
+                                 "thing"))
                             (format "thing with ~a procedure"
                                     k)
                             (format "~a with ~a procedures"
-                                    (t 'name)
+                                    (if (hash-has-key?
+                                         (t 'procedures) 'name)
+                                        (t 'name)
+                                        "thing")
                                     (hash-keys (t 'procedures)))))))
 
-(define (set-procedure! t)
+(define (>set-procedure! t)
   (unless (procedure? t)
     (raise-argument-error 'set-procedure!
                           "procedure?"
@@ -62,11 +67,11 @@
                             p))
     (log-debug "setting ~a procedure of ~a to ~a"
                k
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t))
-    (t 'call (λ (T) (hash-set! T k p)))))
+    (t 'call~ (λ (T) (hash-set! T k p)))))
 
-(define (set-procedures! t)
+(define (>set-procedures! t)
   (unless (procedure? t)
     (raise-argument-error 'set-procedures!
                           "procedure?"
@@ -74,13 +79,13 @@
   (λ (P)
     ;; need better handling here
     (log-debug "setting new procedures for ~a: ~a"
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t))
     (map (λ (p) (t 'set-procedure! (car p) (cdr p)))
          P)
     (void)))
 
-(define (remove-procedure! t)
+(define (>remove-procedure! t)
   (unless (procedure? t)
     (raise-argument-error 'remove-procedure!
                           "procedure?"
@@ -92,30 +97,30 @@
                             k))
     (log-debug "removing ~a procedure from ~a"
                k
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t))
-    (t 'call (λ (T) (hash-remove! T k)))))
+    (t 'call~ (λ (T) (hash-remove! T k)))))
 
-(define (has-procedure? t)
+(define (>has-procedure? t)
   (unless (procedure? t)
     (raise-argument-error 'has-procedure?
                           "procedure?"
                           t))
   (λ (k)
     (log-debug "querying if ~a has ~a procedure."
-               ((t 'with-procedure 'name)
+               ((t 'with-procedure~~ 'name)
                 #:alternate t)
                k)
-    (t 'call (λ (T) (hash-has-key? T k)))))
+    (t 'call~ (λ (T) (hash-has-key? T k)))))
 
-(define (with-procedure t)
+(define (>with-procedure~~ t)
   (unless (procedure? t)
-    (raise-argument-error 'with-procedure
+    (raise-argument-error 'with-procedure~~
                           "procedure?"
                           t))
   (λ (k)
     (unless (symbol? k)
-      (raise-argument-error 'with-procedure
+      (raise-argument-error 'with-procedure~~
                             "symbol?"
                             k))
     (λ (#:alternate [alternate #f] . a)
@@ -129,7 +134,7 @@
                   alternate)
               (void))))))
 
-(define (prerender-string t)
+(define (>prerender-string t)
   (unless (procedure? t)
     (raise-argument-error 'prerender-string
                           "procedure?"
@@ -144,8 +149,8 @@
            S)
       r)))
 
-(define ((name t)) "thing")
-(define ((set-name! t) n) (t 'set-procedure! 'name
+(define ((>name t)) "thing")
+(define ((>set-name! t) n) (t 'set-procedure! 'name
                              (λ () n)))
 
 (define (create-core-thing)
@@ -161,27 +166,27 @@
                                           "thing")
                                       k)
                               (hash-keys T))))
-  (hash-set! T 'call (λ (p) (p T)))
+  (hash-set! T 'call~ (λ (p) (p T)))
   t)
 
 (define (create-thing [given-name "thing"] [additional-procedures #f])
   (log-debug "creating a thing")
   (define t (create-core-thing))
-  (t 'call (λ (T) (hash-set! T 'set-procedure!
-                             (set-procedure! t))))
-  (t 'set-procedure! 'set-procedures! (set-procedures! t))
+  (t 'call~ (λ (T) (hash-set! T 'set-procedure!
+                             (>set-procedure! t))))
+  (t 'set-procedure! 'set-procedures! (>set-procedures! t))
   (t 'set-procedures!
-     (list (cons 'has-procedure? (has-procedure? t))
-           (cons 'procedures (procedures t))
-           (cons 'procedure (procedure t))
-           (cons 'remove-procedure! (remove-procedure! t))
-           (cons 'with-procedure (with-procedure t))
-           (cons 'prerender-string (prerender-string t))
-           (cons 'name (name t))
-           (cons 'set-name! (set-name! t))))
+     (list (cons 'has-procedure? (>has-procedure? t))
+           (cons 'procedures (>procedures t))
+           (cons 'procedure (>procedure t))
+           (cons 'remove-procedure! (>remove-procedure! t))
+           (cons 'with-procedure~~ (>with-procedure~~ t))
+           (cons 'prerender-string (>prerender-string t))
+           (cons 'name (>name t))
+           (cons 'set-name! (>set-name! t))))
   (when additional-procedures
     (map
-     (λ (P) (t 'set-procedure! (car P) ((cdr P) t)))
+     (λ (P) (t 'set-procedures! (P t)))
      additional-procedures))
   (when given-name (t 'set-name! given-name))
   t)
