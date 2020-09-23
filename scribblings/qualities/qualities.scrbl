@@ -11,3 +11,4 @@ Qualities are groups of procedures which return procedures to be added to a thin
 @local-table-of-contents[]
 
 @include-section["animation.scrbl"]
+@include-section["brightness.scrbl"]
