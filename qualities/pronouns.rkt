@@ -39,16 +39,16 @@
    (cons 'pronoun-r3 (λ () r3))))
 
 (define (>>make-e-pronoun-procedures t)
-  (make-pronoun-procedures t))
+  (>>make-pronoun-procedures t))
 
 (define (>>make-she-pronoun-procedures t)
-  (make-pronoun-procedures
+  (>>make-pronoun-procedures
    t #:s3 "she" #:o3 "her" #:dp3 "her" #:ip3 "hers" #:r3 "herself"))
 
 (define (>>make-they-pronoun-procedures t)
-  (make-pronoun-procedures
+  (>>make-pronoun-procedures
    t #:s3 "they" #:o3 "them" #:dp3 "their" #:ip3 "theirs" #:r3 "themself"))
 
 (define (>>make-he-pronoun-procedures t)
-  (make-pronoun-procedures
+  (>>make-pronoun-procedures
    t #:s3 "he" #:o3 "him" #:dp3 "his" #:ip3 "his" #:r3 "himself"))

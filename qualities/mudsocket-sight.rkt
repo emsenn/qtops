@@ -13,7 +13,7 @@
           [(c 'has-procedure? 'looked-at-by-thing)
            (c 'looked-at-by-thing t)]
           [else
-           (t 'look-thing c)])]
+           (t 'look-thing! c)])]
        [else
         (t 'message! "You look around, but you aren't anyplace.")])]
     [(hash-has-key? a "container")

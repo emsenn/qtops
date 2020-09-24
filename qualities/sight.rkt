@@ -34,7 +34,7 @@
 
 (define (>>make-sight-procedures t)
   (list
-   (cons 'look-thing! (>look-thing t))))
+   (cons 'look-thing! (>look-thing! t))))
 
 (define (<>sighted t)
   (t 'set-procedures! (>>make-sight-procedures t))

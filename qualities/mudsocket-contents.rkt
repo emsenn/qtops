@@ -12,7 +12,7 @@
         (cond
           [(hash-has-key? ((t 'container) 'exits) l)
            (define d (hash-ref ((t 'container) 'exits) l))
-           (t 'move-thing! d)
+           (t 'move-thing!! d)
            (t 'message!
               (format "You move; your location is now ~a.~a"
                       (d 'name)

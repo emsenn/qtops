@@ -1,6 +1,7 @@
 #lang racket
 
-(require "../utilities/lists.rkt")
+(require "animation.rkt"
+         "../utilities/lists.rkt")
 
 (provide <>noisy
          >>make-noise-procedures
@@ -9,7 +10,7 @@
          >add-noises!
          >add-noise!
          >noise
-         >make-noise)
+         >make-noise^!)
 
 (define ((>noises t)) (list))
 (define ((>set-noises! t) N)
@@ -32,8 +33,16 @@
    (cons 'add-noises! (>add-noises! t))
    (cons 'add-noise! (>add-noise! t))
    (cons 'noise (>noise t))
-   (cons 'make-noise (>make-noise^! t))))
+   (cons 'make-noise^! (>make-noise^! t))))
 
-(define (<>noisy t)
-  (t 'set-procedures! (>>make-noise-procedures t))
+(define (<>noisy t
+                 #:noises [n #f]
+                 #:frequency [f (random 120 300)]
+                 #:chance [c 100])
+  (unless (t 'has-procedure? 'animations)
+    (t 'set-procedures! (>>make-animation-procedures t)))
+  (unless (t 'has-procedure? 'noises)
+    (t 'set-procedures! (>>make-noise-procedures t)))
+    (when n (t 'add-noises! n))
+  ((t 'with-procedure~~ 'add-animation!) (list 'make-noise f c))
   t)

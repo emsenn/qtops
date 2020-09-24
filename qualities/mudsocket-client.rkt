@@ -10,11 +10,11 @@
          >mudsocket-commands
          >set-mudsocket-commands!
          >set-mudsocket-command!
+         >parse-mudsocket-line
          make-commands-mudsocket-command
          make-help-mudsocket-command
          make-whoami-mudsocket-command
-         make-default-mudsocket-commands
-         parse-mudsocket-line)
+         make-default-mudsocket-commands)
 
 (define ((>mudsocket-output-buffer t)) "")
 (define (>set-mudsocket-output-buffer! t)
@@ -146,16 +146,16 @@
          (>append-mudsocket-output-buffer! t))
    (cons 'clear-mudsocket-output-buffer!
          (>clear-mudsocket-output-buffer! t))
-   (cons 'send-mudsocket-output-buffer
-         (>send-mudsocket-output-buffer t))
+   (cons 'send-mudsocket-output-buffer!
+         (>send-mudsocket-output-buffer! t))
    (cons 'parse-mudsocket-line
          (>parse-mudsocket-line t))
    (cons 'mudsocket-commands
-         (mudsocket-commands t))
+         (>mudsocket-commands t))
    (cons 'set-mudsocket-commands!
-         (set-mudsocket-commands! t))
+         (>set-mudsocket-commands! t))
    (cons 'set-mudsocket-command!
-         (set-mudsocket-command! t))))
+         (>set-mudsocket-command! t))))
 
 (define (<>mudsocket-client t
                             #:in in

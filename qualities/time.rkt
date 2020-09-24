@@ -27,7 +27,7 @@
 
 (define (>time t r)
   (define real-time
-    (thread (λ () (let l () (t 'tick) (sleep r) (l)))))
+    (thread (λ () (let l () (t 'tick!) (sleep r) (l)))))
   (thread-suspend real-time)
   (λ () real-time))
 (define ((>clock t))
@@ -38,7 +38,7 @@
 (define ((>increment-clock! t) [n 1])
   (t 'set-clock! (+ (t 'clock) n)))
 
-(define ((>tick t))
+(define ((>tick! t))
   (t 'increment-clock!)
   (define events (first (t 'schedule)))
   (t 'set-schedule!
@@ -95,7 +95,7 @@
    (cons 'clock (>clock t))
    (cons 'set-clock! (>set-clock! t))
    (cons 'increment-clock! (>increment-clock! t))
-   (cons 'tick (>tick t))
+   (cons 'tick! (>tick! t))
    (cons 'schedule (>schedule t))
    (cons 'set-schedule! (>set-schedule! t))
    (cons 'schedule-event! (>schedule-event! t))))

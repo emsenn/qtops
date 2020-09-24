@@ -13,7 +13,8 @@
   (and (list? A)
                  (andmap list? A)
                  (andmap (λ (a)
-                           (and (procedure? (first a))
+                           (and (or (symbol? (first a))
+                                    (procedure? (first a)))
                                 (or (integer? (second a))
                                     (procedure? (second a)))
                                 (or (integer? (third a))
@@ -25,13 +26,9 @@
     (raise-argument-error '>animations
                           "procedure?"
                           t))
-  (log-debug "Creating animations procedure for ~a"
-             ((t 'with-procedure 'name)
-              #:alternate "thing"))
+  (log-debug "Creating animations procedure for ~a" (t 'name))
   (λ ()
-    (log-debug "Querying ~a's animations"
-               ((t 'with-procedure 'name)
-                #:alternate "thing"))
+    (log-debug "Querying ~a's animations" (t 'name))
     (list)))
 
 (define (>set-animations! t)
@@ -39,25 +36,18 @@
     (raise-argument-error '>set-animations!
                           "procedure?"
                           t))
-  (log-debug "Creating set-animations! procedure for ~a"
-             ((t 'with-procedure 'name)
-              #:alternate "thing"))
+  (log-debug "Creating set-animations! procedure for ~a" (t 'name))
   (λ (A)
     (unless (animations-list? A)
       (raise-argument-error
        'set-animations!
        "listof (list procedure (proc/int) (proc/int)"
        A))
-    (log-debug "Setting ~a's animations to ~a"
-               ((t 'with-procedure 'name)
-                #:alternate "thing")
-               A)
+    (log-debug "Setting ~a's animations to ~a" (t 'name) A)
     (t 'set-procedure!
        'animations
        (λ ()
-         (log-debug "Querying ~a's animations."
-                    ((t 'with-procedure 'name)
-                     #:alternate "thing"))
+         (log-debug "Querying ~a's animations." (t 'name))
          A))))
 
 
@@ -66,29 +56,23 @@
     (raise-argument-error '>add-animations!
                           "procedure?"
                           t))
-  (log-debug "Creating add-animations! procedure for ~a"
-             (t 'name))
+  (log-debug "Creating add-animations! procedure for ~a" (t 'name))
   (λ (A)
     (unless (animations-list? A)
       (raise-argument-error
        'add-animations!
        "listof (list proc (proc/int) (proc/int))"
        A))
-    (log-debug "Adding to ~a's animations: ~a"
-               ((t 'with-procedure 'name)
-                #:alternate "thing")
-               A)
+    (log-debug "Adding to ~a's animations: ~a" (t 'name) A)
     (t 'set-animations! (append (t 'animations) A))))
 (define (>add-animation! t)
   (unless (procedure? t)
     (raise-argument-error '>add-animation!
                           "procedure?"
                           t))
-  (log-debug "Creating add-animation! procedure for ~a"
-             (t 'name))
+  (log-debug "Creating add-animation! procedure for ~a" (t 'name))
   (λ (a)
-    (log-debug "Adding ~a to ~a's animations"
-               a (t 'name))
+    (log-debug "Adding ~a to ~a's animations" a (t 'name))
     (t 'add-animations! (list a))))
 
 

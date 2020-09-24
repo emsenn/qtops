@@ -17,6 +17,8 @@
    (cons 'description (>description t))
    (cons 'set-description! (>set-description! t))))
 
-(define (<>described t)
-  (t 'set-procedures! (>>make-description-procedures t))
+(define (<>described t #:description [description #f])
+  (unless (t 'has-procedure? 'description)
+    (t 'set-procedures! (>>make-description-procedures t)))
+  (when description (t 'set-description! description))
   t)

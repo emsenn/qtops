@@ -1,19 +1,12 @@
 #lang racket
 
-(require "name.rkt"
+(require "../things.rkt"
          "contents.rkt"
          "client.rkt"
          "mudsocket-client.rkt")
 
 (provide <>mudsocket-server
-         >>make-mudsocket-server-procedures
-         >listener
-         >connections
-         >set-connections!
-         >add-connection!
-         >remove-connection!
-         >accept-connection!
-         >tick~)
+         >>make-mudsocket-server-procedures)
 
 (define (>listener t p)
   (define real-listener (tcp-listen p 5 #t))
@@ -40,21 +33,20 @@
 (define ((>accept-connection! t))
   (log-debug "~a is accepting a connection." t)
   ;; honestly can't recall if that's the right syntax
-  (define ct ((t 'with-procedure~~ 'create-thing)
-              #:alternate ((t 'with-procedure~~ 'universe)
-                           'with-procedure~~ 'create-thing
-                           #:alternate create-thing)))
+  (define ct (if (t 'has-procedure? 'create-thing^!)
+                 (t 'procedure 'create-thing^!)
+                 (if (t 'has-procedure? 'universe)
+                     ((t 'universe) 'procedure 'create-thing!)
+                     create-thing)))
   (define-values (in out) (tcp-accept (t 'listener)))
   (define-values (lip lport rip rport) (tcp-addresses in #t))
   (define client (<>mudsocket-client
                   (<>contained
                    (<>client (ct "MUDSocket Client")))
                   #:in in #:out out
-                  #:ip rip #:port rport
-                  #:mudsocket-commands
-                  (make-default-mudsocket-commands client)))
-  ;; will that work? i pass client before it's...
-  ;; all-the-way-defined? *shrug* fun things to learn tomorrow!
+                  #:ip rip #:port rport))
+  (client 'set-mudsocket-commands!
+          (make-default-mudsocket-commands client))
   (t 'add-connection! client)
   (when (and (t 'has-procedure? 'universe)
              ((t 'universe) 'has-procedure?
@@ -70,7 +62,7 @@
                 #:alternate ((t 'with-procedure 'name)
                              #:alternate "someplace"))))))
 
-(define ((tick t))
+(define ((>tick! t))
   (λ ()
     (map
      (λ (c)
@@ -93,7 +85,7 @@
      (t 'connections))
     (when (tcp-accept-ready? (t 'listener))
       (t 'accept-connection!))
-    ((t 'universe) 'schedule-event! (t 'tick))))
+    ((t 'universe) 'schedule-event! (t 'tick!))))
 
 (define (>>make-mudsocket-server-procedures t [p 4242])
   (log-debug "Making MUDSocket procedures for ~a." (t 'name))
@@ -104,8 +96,8 @@
    (cons 'add-connection! (>add-connection! t))
    (cons 'remove-connection! (>remove-connection! t))
    (cons 'accept-connection! (>accept-connection! t))
-   (cons 'tick (>tick t))))
+   (cons 'tick! (>tick! t))))
 
 (define (<>mudsocket-server t #:port [port 4242])
-  (t 'set-procedures! (>>make-mudsocket-procedures t port))
+  (t 'set-procedures! (>>make-mudsocket-server-procedures t port))
   t)

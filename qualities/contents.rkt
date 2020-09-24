@@ -1,6 +1,8 @@
 #lang racket
 
-(provide <>contents
+(require "fillable.rkt")
+
+(provide <>container
          <>contained
          >>make-content-procedures
          >>make-container-procedures
@@ -12,9 +14,9 @@
          >search-contents-by-term
          >container
          >set-container!
-         >move-thing!
-         >message-container-contents!
-         >message-contents!)
+         >move-thing!!
+         >message-container-contents^!
+         >message-contents^!)
 
 (define ((>contents t)) (list))
 (define ((>set-contents! t) C)
@@ -34,7 +36,7 @@
 (define ((>set-container! t) c)
   (t 'set-procedure! 'container (λ () c)))
 
-(define ((>move-thing! t) d)
+(define ((>move-thing!! t) d)
   (when (and (t 'has-procedure? 'container)
              (procedure? (t 'container)))
     ((t 'container) 'remove-content! t)
@@ -72,39 +74,54 @@
   (d 'add-content! t)
   (t 'set-container! d))
 
-(define ((>message-container-contents! t) m)
+(define ((>message-container-contents^! t) m)
   (map (λ (t) (when (t 'has-procedure? 'message!)
                 (t 'message! m)))
        ((t 'container) 'contents)))
 
-(define ((>message-contents! t) m)
+(define ((>message-contents^! t) m)
   (map (λ (t) (when (t 'has-procedure? 'message!)
                 (t 'message! m)))
        (t 'contents)))
 
+(define ((>fill-contents! t) c)
+  (t 'fill-quality!
+      'contents c
+      'container >>make-container-procedures
+      (λ (w) (w 'move-thing!! t))))
+
 (define (>>make-content-procedures t)
-  (log-debug "Making content procedures for ~a"
-             ((t 'with-procedure 'name)
-              #:alternate t))
-  (list
-   (cons 'contents (contents t))
-   (cons 'set-contents! (set-contents! t))
-   (cons 'add-contents! (add-contents! t))
-   (cons 'add-content! (add-content! t))
-   (cons 'remove-content! (remove-content! t))
-   (cons 'search-contents-by-term (search-contents-by-term t))
-   (cons 'message-contents! (message-contents! t))))
+  (log-debug "Making content procedures for ~a" (t 'name))
+  (define cp '())
+  (define (CP a) (set! cp (append cp a)))
+  (define content-procedures '())
+  (unless (t 'has-procedure? 'fill-quality!)
+    (CP (>>make-fillable-procedures t)))
+  (CP
+   (list
+    (cons 'contents (>contents t))
+    (cons 'set-contents! (>set-contents! t))
+    (cons 'add-contents! (>add-contents! t))
+    (cons 'add-content! (>add-content! t))
+    (cons 'remove-content! (>remove-content! t))
+    (cons 'search-contents-by-term (>search-contents-by-term t))
+    (cons 'message-contents^! (>message-contents^! t))
+    (cons 'fill-contents! (>fill-contents! t))))
+  cp)
 
 (define (>>make-container-procedures t)
-  (log-debug "Making container procedures for ~a"
-             (if (t 'has-procedure? 'name) (t 'name) t))
+  (log-debug "Making container procedures for ~a" (t 'name))
   (list
-   (cons 'container (container t))
-   (cons 'set-container! (set-container! t))
-   (cons 'move-thing! (move-thing! t))
-   (cons 'message-container-contents!
-         (message-container-contents! t))))
+   (cons 'container (>container t))
+   (cons 'set-container! (>set-container! t))
+   (cons 'move-thing!! (>move-thing!! t))
+   (cons 'message-container-contents^!
+         (>message-container-contents^! t))))
 
-(define (<>contents t)
+(define (<>container t)
   (t 'set-procedures! (>>make-content-procedures t))
+  t)
+
+(define (<>contained t)
+  (t 'set-procedures! (>>make-container-procedures t))
   t)

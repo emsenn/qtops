@@ -1,6 +1,6 @@
 #lang racket
 
-(require qtmud/utilities/lists)
+(require "../utilities/lists.rkt")
 
 (provide make-trivia-mudsocket-commands)
 
