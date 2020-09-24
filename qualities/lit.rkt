@@ -1,10 +1,7 @@
 #lang racket
 
 (provide <>lit
-         >>make-light-procedures
-         >light
-         >set-light!
-         >increment-light!
+         >>make-light-procedures)
 
 (define ((>light t)) 0)
 (define ((>set-light! t) m)

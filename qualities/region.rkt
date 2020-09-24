@@ -80,6 +80,6 @@
     (t 'set-procedures! (>>make-description-procedures t)))
   (unless (t 'has-procedure? 'areas)
     (t 'set-procedures! (>>make-region-procedures t)))
-  (when areas (t 'fill-areas! areas))
+  (when areas (t 'fill-areas! (make-hash areas)))
   (when links (t 'link-areas^! links))
   t)

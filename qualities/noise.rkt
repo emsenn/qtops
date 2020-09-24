@@ -23,8 +23,8 @@
   (random-element (t 'noises)))
 (define ((>make-noise^! t))
   (define noise (if (procedure? (t 'noise)) ((t 'noise)) (t 'noise)))
-  ((t 'with-procedure 'message-contents!) noise)
-  ((t 'with-procedure 'message-container-contents!) noise))
+  ((t 'with-procedure~~ 'message-contents^!) noise)
+  ((t 'with-procedure~~ 'message-container-contents^!) noise))
 
 (define (>>make-noise-procedures t)
   (list
@@ -44,5 +44,5 @@
   (unless (t 'has-procedure? 'noises)
     (t 'set-procedures! (>>make-noise-procedures t)))
     (when n (t 'add-noises! n))
-  ((t 'with-procedure~~ 'add-animation!) (list 'make-noise f c))
+  ((t 'with-procedure~~ 'add-animation!) (list 'make-noise^! f c))
   t)

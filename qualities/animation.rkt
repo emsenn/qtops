@@ -95,18 +95,16 @@
                    (if (procedure? w) (w) w)))
        (when (>= i f) (set! i f))
        (when (<= c 100)
-         ((t 'with-procedure~~ 'universe)
-          'schedule-event! p f
-          #:alternate
-          (log-warning
-           "~a has no universe; cannot schedule animation ~a"
-           (t 'name) a))))
+         (if (t 'has-procedure? 'universe)
+             ((t 'universe) 'schedule-event! p f)
+             (log-warning
+              "~a has no universe: cannot schedule animation ~a"
+              (t 'name) a))))
      (t 'animations))
-    ((t 'with-procedure~~ 'universe)
-     'schedule-event! (t 'procedure 'animate~~) i
-     #:alternate (log-warning
-                  "~a has no universe; cannot reschedule animations"
-                  (t 'name)))))
+    (if (t 'has-procedure? 'universe)
+        ((t 'universe) 'schedule-event! (t 'procedure 'animate~~) i)
+        (log-warning
+         "~a lacks universe: cannot rechedule animation."))))
 
 
 (define (>>make-animation-procedures t)

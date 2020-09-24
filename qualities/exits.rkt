@@ -17,7 +17,11 @@
 (define ((>set-exits! t) E)
   (map
    (λ (e)
-     (hash-set! (t 'exits) (car e) (cdr e)))
+     (hash-set! (t 'exits)
+                (if (string? (car e))
+                    (string->symbol (car e))
+                    (car e))
+                (cdr e)))
    E))
 (define ((>set-exit! t) k e)
   (t 'set-exits! (list (cons k e))))
