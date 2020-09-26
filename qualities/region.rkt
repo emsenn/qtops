@@ -14,7 +14,7 @@
 (define ((>area t) k) (hash-ref (t 'areas) k))
 (define ((>set-areas! t) A)
   (hash-map
-   (t 'areas)
+   A
    (λ (k v) (hash-set! (t 'areas) k v))))
 (define ((>set-area! t) k a)
   (hash-set! (t 'areas) k a))
@@ -35,6 +35,7 @@
      (log-debug "FOOBAR Adding ~a to areas of ~a as ~a"
                 (w 'name) (t 'name) k)
      (t 'set-area! k w)
+     (w 'set-region! t)
      (when (t 'has-procedure? 'contents)
        (t 'add-content! w)))))
 

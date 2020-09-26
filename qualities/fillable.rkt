@@ -12,6 +12,8 @@
      (define w
        ((λ () (cond [(t 'has-procedure? 'create-thing^!)
                      (t 'create-thing^!)]
+                    [(t 'has-procedure? 'create-thing!)
+                     (t 'create-thing!)]
                     [(t 'has-procedure? 'universe)
                      ((t 'universe) 'create-thing!)]
                     [else (create-thing)]))))

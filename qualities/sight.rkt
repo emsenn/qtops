@@ -24,7 +24,9 @@
   (when (and (o 'has-procedure? 'exits)
              (not (null? (hash-keys (o 'exits)))))
     (R (format "  Exits: ~a\n"
-               (string-join (hash-keys (o 'exits)) ", "))))
+               (string-join (map
+                             (λ (s) (symbol->string s))
+                             (hash-keys (o 'exits))) ", "))))
   (when c
     (R (format "Contents: ~a\n"
                (string-join (map (λ (t) (t 'name)) c) ", "))))

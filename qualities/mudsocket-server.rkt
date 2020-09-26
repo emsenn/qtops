@@ -73,7 +73,7 @@
           (with-handlers
             ([exn:fail?
               (λ (e)
-                (log-warning "MUDSocket encountered issue."))])
+                (log-warning "MUDSocket encountered issue: ~a"))])
             (define cline (read-line (c 'mudsocket-in)))
             (cond
               [(string? cline)
@@ -99,5 +99,6 @@
    (cons 'tick! (>tick! t))))
 
 (define (<>mudsocket-server t #:port [port 4242])
+  (t 'set-name! "MUDSocket server")
   (t 'set-procedures! (>>make-mudsocket-server-procedures t port))
   t)

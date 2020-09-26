@@ -2,12 +2,7 @@
 
 
 (provide <>animate
-         >>make-animation-procedures
-         >animations
-         >set-animations!
-         >add-animations!
-         >add-animation!
-         >animate~~)
+         >>make-animation-procedures)
 
 (define (animations-list? A)
   (and (list? A)
@@ -75,6 +70,13 @@
     (log-debug "Adding ~a to ~a's animations" a (t 'name))
     (t 'add-animations! (list a))))
 
+(define ((>remove-animation! t) k)
+  (t 'set-animations!
+     (filter list?
+             (map
+              (λ (n)
+                (when (not (eq? (car n) k)) k))
+              (t 'animations)))))
 
 (define (>animate~~ t)
   (unless (procedure? t)
@@ -113,6 +115,7 @@
    (cons 'set-animations! (>set-animations! t))
    (cons 'add-animations! (>add-animations! t))
    (cons 'add-animation! (>add-animation! t))
+   (cons 'remove-animation! (>remove-animation! t))
    (cons 'animate~~ (>animate~~ t))))
 
 (define (<>animate t)

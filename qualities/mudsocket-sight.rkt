@@ -25,8 +25,10 @@
      (when ((t 'container) 'term=? l)
        (set! m (append m (list (t 'container)))))
      (map
-      (λ (e) (when (string=? e l)
-               (set! m (append m (list ((t 'container) 'exit e))))))
+      (λ (e)
+        (define f (symbol->string e))
+        (when (string=? f l)
+          (set! m (append m (list ((t 'container) 'exit e))))))
       (hash-keys ((t 'container) 'exits)))
      (log-debug "Matches are ~a" m)
      (cond
@@ -38,7 +40,7 @@
           [(n 'has-procedure? 'looked-at-by-thing)
            (n 'looked-at-by-thing t)]
           [else
-           (t 'look-thing n)])]
+           (t 'look-thing! n)])]
        [else
         (t 'message!
            (format "There are multiple matches for \"~a\": ~a."

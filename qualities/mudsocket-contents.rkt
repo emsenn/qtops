@@ -8,10 +8,10 @@
           (procedure? (t 'container)))
      (cond
        [(hash-has-key? a 'line)
-        (define l (hash-ref a 'line))
+        (define l (string->symbol (hash-ref a 'line)))
         (cond
           [(hash-has-key? ((t 'container) 'exits) l)
-           (define d (hash-ref ((t 'container) 'exits) (string->symbol l)))
+           (define d (hash-ref ((t 'container) 'exits) l))
            (t 'move-thing!! d)
            (t 'message!
               (format "You move; your location is now ~a.~a"
@@ -20,7 +20,9 @@
                         [(d 'has-procedure? 'exits)
                          (format "\n  Exits: ~a"
                                  (string-join
-                                  (hash-keys (d 'exits)) ", "))]
+                                  (map (λ (e) (symbol->string e))
+                                       (hash-keys (d 'exits)))
+                                  ", "))]
                         [else ""])))]
           [else
            (t 'message!

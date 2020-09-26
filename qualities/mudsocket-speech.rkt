@@ -6,7 +6,7 @@
   (if (and (t 'has-procedure? 'container)
            (procedure? (t 'container)))
       (if (hash-has-key? a 'line)
-          (t 'message-container-contents!
+          (t 'message-container-contents^!
              (format "~a says: ~a"
                      (if (t 'has-procedure? 'name)
                          (t 'name)
