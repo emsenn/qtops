@@ -1,15 +1,11 @@
 #lang racket
 
 (require "../things.rkt"
+         "fillable.rkt"
          "universe-thing.rkt")
 
 (provide <>universe
-         >>make-universe-procedures
-         >things
-         >set-things!
-         >add-thing!
-         >remove-thing!
-         >create-thing!)
+         >>make-universe-procedures)
 
 (define ((>things t)) (list))
 
@@ -29,6 +25,11 @@
   (t 'add-thing! c)
   c)
 
+(define ((>fill-things! t) T)
+  (t 'fill-quality!
+     'things T
+     'universe >>make-universe-thing-procedures))
+
 (define (>>make-universe-procedures t)
   (log-debug "Making universe procedures for ~a."
              (if (t 'has-procedure? 'name) (t 'name) t))
@@ -36,8 +37,12 @@
    (cons 'create-thing! (>create-thing! t))
    (cons 'things (>things t))
    (cons 'set-things! (>set-things! t))
-   (cons 'add-thing! (>add-thing! t))))
+   (cons 'add-thing! (>add-thing! t))
+   (cons 'fill-things! (>fill-things! t))))
 
-(define (<>universe t)
+(define (<>universe t #:things [things #f])
+  (unless (t 'has-procedure? 'fill-quality!)
+    (t 'set-procedures! (>>make-fillable-procedures t)))
   (t 'set-procedures! (>>make-universe-procedures t))
+  (when things (t 'fill-things! things))
   t)
