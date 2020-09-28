@@ -62,7 +62,7 @@
                 #:alternate ((t 'with-procedure 'name)
                              #:alternate "someplace"))))))
 
-(define ((>tick! t))
+(define ((>mudsocket-tick! t))
   (λ ()
     (map
      (λ (c)
@@ -96,7 +96,7 @@
    (cons 'add-connection! (>add-connection! t))
    (cons 'remove-connection! (>remove-connection! t))
    (cons 'accept-connection! (>accept-connection! t))
-   (cons 'tick! (>tick! t))))
+   (cons 'mudsocket-tick! (>mudsocket-tick! t))))
 
 (define (<>mudsocket-server t #:port [port 4242])
   (t 'set-name! "MUDSocket server")
