@@ -33,11 +33,13 @@
 (define ((>accept-connection! t))
   (log-debug "~a is accepting a connection." t)
   ;; honestly can't recall if that's the right syntax
-  (define ct (if (t 'has-procedure? 'create-thing^!)
-                 (t 'procedure 'create-thing^!)
-                 (if (t 'has-procedure? 'universe)
-                     ((t 'universe) 'procedure 'create-thing!)
-                     create-thing)))
+  (define ct (if (t 'has-procedure? 'create-thing!)
+                 (t 'procedure 'create-thing!)
+                 (if (t 'has-procedure? 'create-thing^!)
+                     (t 'procedure 'create-thing^!)
+                     (if (t 'has-procedure? 'universe)
+                         ((t 'universe) 'procedure 'create-thing!)
+                         create-thing))))
   (define-values (in out) (tcp-accept (t 'listener)))
   (define-values (lip lport rip rport) (tcp-addresses in #t))
   (define client (<>mudsocket-client
@@ -48,18 +50,21 @@
   (client 'set-mudsocket-commands!
           (make-default-mudsocket-commands client))
   (t 'add-connection! client)
-  (when (and (t 'has-procedure? 'universe)
-             ((t 'universe) 'has-procedure?
-                            'accept-mudsocket-connection))
-    ((t 'universe) 'accept-mudsocket-connection client))
+  (if (t 'has-procedure? 'accept-mudsocket-connection)
+      (t 'accept-mudsocket-connection client)
+      (when
+          (and (t 'has-procedure? 'universe)
+               ((t 'universe) 'has-procedure?
+                              'accept-mudsocket-connection))
+        ((t 'universe) 'accept-mudsocket-connection client)))
   (client
    'message!
    (if (client 'has-procedure? 'make-mudsocket-connection-message)
        (client 'make-mudsocket-connection-message)
        (format "Your connection to ~a has been accepted."
-               ((t 'with-procedure 'universe)
+               ((t 'with-procedure~~ 'universe)
                 'name
-                #:alternate ((t 'with-procedure 'name)
+                #:alternate ((t 'with-procedure~~ 'name)
                              #:alternate "someplace"))))))
 
 (define ((>mudsocket-tick! t))
@@ -85,7 +90,12 @@
      (t 'connections))
     (when (tcp-accept-ready? (t 'listener))
       (t 'accept-connection!))
-    ((t 'universe) 'schedule-event! (t 'tick!))))
+    (if (t 'has-procedure? 'schedule-event!)
+        (t 'schedule-event! (t 'mudsocket-tick!))
+        (if (and (t 'has-procedure? 'universe)
+                 ((t 'universe) 'has-procedure? 'schedule-event!))
+            ((t 'universe 'schedule-event! (t 'mudsocket-tick!)))
+            (log-warning "No means of rescheduling MUDSocket tick.")))))
 
 (define (>>make-mudsocket-server-procedures t [p 4242])
   (log-debug "Making MUDSocket procedures for ~a." (t 'name))
