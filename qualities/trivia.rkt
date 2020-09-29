@@ -27,5 +27,6 @@
    (cons 'add-trivium! (>add-trivium! t))
    (cons 'remove-trivium! (>remove-trivium! t))))
 
-(define (<>trivial t)
-  (t 'set-procedures! (>>make-trivia-procedures t)))
+(define (<>trivial t #:trivia [trivia #f])
+  (t 'set-procedures! (>>make-trivia-procedures t))
+  (when trivia (t 'add-trivia! trivia)))
