@@ -29,7 +29,12 @@
                              (hash-keys (o 'exits))) ", "))))
   (when c
     (R (format "Contents: ~a\n"
-               (string-join (map (λ (t) (t 'name)) c) ", "))))
+               (string-join (map (λ (w)
+                                   (if (eq? w t)
+                                       "you"
+                                       (w 'name)))
+                                 c)
+                            ", "))))
   (cond
     [(> (string-length r) 0) (t 'message! r)]
     [else (t 'message! "You can't look at that.")]))
