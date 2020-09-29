@@ -40,10 +40,27 @@
        (t 'add-content! w)))))
 
 (define ((>link-two-areas^! t) k1 d1 d2 k2)
-  (when (and (t 'area? k1)
-             (t 'area? k2))
-    ((t 'area k1) 'set-exit! d1 (t 'area k2))
-    ((t 'area k2) 'set-exit! d2 (t 'area k1))))
+  (define (process-keys k)
+    (let loop ()
+      (cond
+        [(symbol? (car k))
+         (set! k (flatten (list (t 'area (car k))
+                                (cdr k))))
+         (loop)]
+        [(procedure? (car k))
+         (cond
+           [(> (length k) 1)
+            (set! k (flatten (list ((car k) 'area
+                                            (car (cdr k)))
+                                   (cdr (cdr k)))))
+            (loop)]
+           [else (first k)])])))
+  (when (symbol? k1) (set! k1 (list k1)))
+  (when (symbol? k2) (set! k2 (list k2)))
+  (set! k1 (process-keys k1))
+  (set! k2 (process-keys k2))
+  (k1 'set-exit! d1 k2)
+  (k2 'set-exit! d2 k1))
 
 (define ((>link-areas^! t) A)
   (map
