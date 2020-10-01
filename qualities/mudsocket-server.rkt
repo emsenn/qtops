@@ -78,7 +78,8 @@
           (with-handlers
             ([exn:fail?
               (λ (e)
-                (log-warning "MUDSocket encountered issue: ~a"))])
+                (log-warning "MUDSocket encountered issue: ~a"
+                             e))])
             (define cline (read-line (c 'mudsocket-in)))
             (cond
               [(string? cline)

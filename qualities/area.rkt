@@ -15,10 +15,21 @@
              (t 'name)
              (if name (format " (to be named ~a)" name)
                  ""))
-  (when name (t 'set-name! name))
+  (if name
+      (t 'set-name! name)
+      (t 'set-name! "an area"))
   (unless (t 'has-procedure? 'description)
     (t 'set-procedures! (>>make-description-procedures t)))
-  (when description (t 'set-description! description))
+  (if description
+      (t 'set-description! description)
+      (t 'set-description!
+         (format "This is ~a~a"
+                 (t 'name)
+                 (if (and (t 'has-procedure? 'region)
+                          (procedure? (t 'region)))
+                     (format ", in ~a"
+                             ((t 'region) 'name))
+                     ""))))
   (unless (t 'has-procedure? 'contents)
     (t 'set-procedures! (>>make-content-procedures t)))
   (when contents (t 'fill-contents! contents))

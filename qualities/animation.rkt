@@ -87,6 +87,7 @@
   (λ ()
     (log-debug "Processing ~a's animations" (t 'name))
     (define i 120)
+    (define it? #f)
     (map
      (λ (a)
        (log-debug "Processing ~a's ~a animation"
@@ -95,18 +96,26 @@
        (define f (let ([w (car (cdr a))]) (if (procedure? w) (w) w)))
        (define c (let ([w (car (cdr (cdr a)))])
                    (if (procedure? w) (w) w)))
-       (when (>= i f) (set! i f))
+       (when (and (> f i) (eq? it? #f))
+         (set! i f) (set! it? #t))
+       (when (< f i)
+         (set! i f) (set! it? #t))
        (when (<= c 100)
-         (if (t 'has-procedure? 'universe)
-             ((t 'universe) 'schedule-event! p f)
-             (log-warning
-              "~a has no universe: cannot schedule animation ~a"
-              (t 'name) a))))
+         (if (t 'has-procedure? 'schedule-event!)
+             (t 'schedule-event! p f)
+             (if (t 'has-procedure? 'universe)
+                 ((t 'universe) 'schedule-event! p f)
+                 (log-warning
+                  "~a has no universe: cannot schedule animation ~a"
+                  (t 'name) a)))))
      (t 'animations))
-    (if (t 'has-procedure? 'universe)
-        ((t 'universe) 'schedule-event! (t 'procedure 'animate~~) i)
-        (log-warning
-         "~a lacks universe: cannot rechedule animation."))))
+    (if (t 'has-procedure? 'schedule-event!)
+        (t 'schedule-event! (t 'procedure 'animate~~) i)
+        (if (t 'has-procedure? 'universe)
+            ((t 'universe) 'schedule-event!
+                           (t 'procedure 'animate~~) i)
+            (log-warning
+             "~a lacks universe: cannot rechedule animation.")))))
 
 
 (define (>>make-animation-procedures t)

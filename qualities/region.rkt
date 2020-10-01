@@ -24,16 +24,11 @@
   (hash-map
    a
    (λ (k v)
-     (log-debug "Filling ~a with ~a ~a"
-                (t 'name) k v)
      (define w
        (first
        (t 'fill-quality!
                'areas v
                'region >>make-region-area-procedures)))
-     (log-debug "w is ~a" w)
-     (log-debug "FOOBAR Adding ~a to areas of ~a as ~a"
-                (w 'name) (t 'name) k)
      (t 'set-area! k w)
      (w 'set-region! t)
      (when (t 'has-procedure? 'contents)
