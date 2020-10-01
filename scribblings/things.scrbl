@@ -20,17 +20,19 @@ A thing @quote{has} a procedure if it is in its internal @deftech{record}, a has
 
 A thing created by @racket[create-core-thing] have one procedure in its record, the 'call~ procedure, which provides direct access to the thing's record.
 
+(Things' procedures often have suffixes like @racket[!] or @racket[~] which represent information about the procedure's (potential) side-effects. See the documentation on qualities for details.)
+
  @interaction-eval[#:eval qtops-things-eval
                    (require "things.rkt")]
  @examples[
 	#:eval qtops-things-eval
      	(define stone (create-core-thing))
      	stone
-	(stone 'call~ (λ (r)
+	(stone 'call~~ (λ (r)
 	  (hash-set! r 'roll
 	             (λ () (printf "The stone rolls.")))))
 	(stone 'roll)
-	(stone 'call~ (λ (r) r))
+	(stone 'call~~ (λ (r) r))
  ]
 
 The procedures held within things follow certain conventions: not violating Racket's own, but extending it. Procedures might have one of the four following suffixes. (Suffices?)
@@ -67,7 +69,11 @@ Creates a hash-table of symbols and procedures, and returns a procedure which re
 	(define milkweed
 	 (create-thing
 	 "milkweed"
-	 `((pop . ,(λ (t) (λ ()(printf "Pop!")))))))
+	 (list
+          (λ (t)
+	    (list
+	     (cons 'pop
+	           (λ () (printf "Pop!"))))))))
 	 (milkweed 'pop)
  ]
 
@@ -78,16 +84,16 @@ Returns a procedure which accepts a @racket[symbol] and @racket[procedure] as ar
 @examples[
 	#:eval qtops-things-eval
 	(stone
-	 'call~
+	 'call~~
 	 (λ (r)
 	   (hash-set! r
 	              'set-procedure!
 		      (>set-procedure! stone))))
 	(stone
 	 'set-procedure!
-	 'crack
-	 (λ () (printf "craaack.")))
-        (stone 'crack)
+	 'name
+	 (λ () "stone"))
+        (stone 'name)
 ]
 
 @defproc[(procedures [t procedure?]) procedure?]{
