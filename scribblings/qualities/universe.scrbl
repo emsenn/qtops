@@ -18,8 +18,8 @@ The @emph{universe} quality provides a thing with, at the moment, one capability
 
 They can @racket{create-thing!}, and that thing will be added to a list of @racket{things} the universe maintains. @emph{And, those things will have a @racket{create-thing^!} procedure that provides an equivalent operation.}
 
-  @history[#:added "0.1.0"
-           #:changed "0.1.0" @elem{@racket[<>universe] now accepts @emph{things} keyword, which accepts a list of quality-application procedures.}]
+  @history[#:added "0.1"
+           #:changed "0.1.1" @elem{@racket[<>universe] now accepts @emph{things} keyword, which accepts a list of quality-application procedures.}]
 
 @defproc*[([(things [t procedure?]) procedure?]
            [(things) list?])]{
