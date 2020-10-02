@@ -14,7 +14,7 @@
 
 @defmodule[qtops/qualities/brightness]
 
-The @emph{animation} quality provides a thing with a measure of how @quote{bright} they are: how much light they put out. This is might be used by things with a relationship to the bright thing to determine how lit they are, for example.
+The @emph{brightness} quality provides a thing with a measure of how @quote{bright} they are: how much light they put out. This is might be used by things with a relationship to the bright thing to determine how lit they are, for example.
 
 @examples[
 	#:eval qtops-brightness-quality-eval

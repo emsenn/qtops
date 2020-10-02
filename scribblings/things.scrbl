@@ -29,9 +29,9 @@ A thing created by @racket[create-core-thing] have one procedure in its record, 
      	(define stone (create-core-thing))
      	stone
 	(stone 'call~~ (λ (r)
-	  (hash-set! r 'roll
-	             (λ () (printf "The stone rolls.")))))
-	(stone 'roll)
+	  (hash-set! r 'name
+	             (λ () "stone"))))
+	(stone 'name)
 	(stone 'call~~ (λ (r) r))
  ]
 
@@ -94,9 +94,9 @@ Returns a procedure which accepts a @racket[symbol] and @racket[procedure] as ar
 		      (>set-procedure! stone))))
 	(stone
 	 'set-procedure!
-	 'name
-	 (λ () "stone"))
-        (stone 'name)
+	 'roll
+	 (λ () "The stone rolls."))
+        (stone 'roll)
 ]
 
 @defproc[(procedures [t procedure?]) procedure?]{

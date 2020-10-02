@@ -28,9 +28,9 @@ Returns a procedure which follows the second form, where the @racket[list] is of
 	  [(set-animations! [A list?]) void])]{
 Returns a procedure for @racket[t] which accepts one argument, a @racket[list]. Each item on the list is expected to take the following format:
 
-@racket[(list procedure integer integer)]
+@racket[(list symbol integer integer)]
 
-Where the @racket[procedure] will be called when @racket[t]'s @racket[animate] procedure is called, the first @racket[integer] is the frequency (in @emph{moments}, a concept from the time quality.), and the second @racket[integer] is the % chance of the @racket[procedure] actually being called.
+Where the @racket[symbol] is a procedure that @racket[t] has, that will be called when @racket[t]'s @racket[animate] procedure is called, the first @racket[integer] is the frequency (in @emph{moments}, a concept from the time quality.), and the second @racket[integer] is the % chance of the @racket[procedure] actually being called.
 
 Alternatively, either or both integers can be a procedure, as long as those procedures return integers.
 }
@@ -40,14 +40,12 @@ Alternatively, either or both integers can be a procedure, as long as those proc
 	(define cedar
 	 (create-thing "cedar"
 	               (list >>make-animation-procedures)))
-	(cedar 'add-animation!
-	       (list
-	        (λ ()
-		  (printf
-		   (cedar 'prerender-string
-		   	  (list 'name " sways in the wind."))))
-		150
-		50))
+	(cedar 'set-procedure! 'sway
+	       (λ ()
+	         (printf
+		  (cedar 'prerender-string
+		         `(,name " sways in the wind.")))))
+	(cedar 'add-animation! '(sway 1 50))
 	(cedar 'animate~~)
 	(cedar 'animate~~)
 	(cedar 'animate~~)
