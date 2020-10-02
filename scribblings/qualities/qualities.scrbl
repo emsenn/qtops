@@ -8,6 +8,8 @@
 
 Qualities are groups of procedures which return procedures to be added to a thing. Jargon!
 
+
+
 @local-table-of-contents[]
 
 @include-section["animation.scrbl"]

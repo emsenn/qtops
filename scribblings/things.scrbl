@@ -40,8 +40,11 @@ The procedures held within things follow certain conventions: not violating Rack
 @itemlist[
 	@item{! means a procedure changes that thing}
 	@item{!! means a procedure changes that and at least another thing}
+	@item{^! means a procedure doesn't change itself, but does change another thing.}
 	@item{~ means a procedure might change that thing}
 	@item{~~ means a procedure might change that and at least another thing.}]
+
+You might see other combinations, like @racket[~!], whose meanings can hopefully be deduced from the list above.
 
 Procedures outside things, but affecting them, follow other conventions, and might have one of these prefixes:
 
