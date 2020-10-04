@@ -1,5 +1,23 @@
 #lang racket
 
+;; Provides the MUDSocket server to qtOps
+
+;; "MUDSocket" is a qtOps precise term which refers to a
+;; server which adheres* to the TELNET protocol (RFC 854)
+;; and several options (RFC 855):
+
+;; MSSP: MUD Server Status Protocol
+;;   https://tintin.mudhalla.net/rfc/rfc854/
+;; MXP: MUD eXtension Protocol
+;;   https://www.zuggsoft.com/zmud/mxp.htm
+;; MSP: MUD Sound Protocol
+;;   https://www.zuggsoft.com/zmud/msp.htm
+;; MCCP: MUD Client Compression Protocol
+;;   https://mudhalla.net/tintin/protocols/mccp/
+
+
+;; * not yet
+
 (require "../things.rkt"
          "contents.rkt"
          "client.rkt"

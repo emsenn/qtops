@@ -33,7 +33,7 @@ To play with **qtOps**, start the Racket REPL (with the `racket` command, no arg
 
 Try `(pebble 'procedures)` to see what all your new bean can do: maybe turn it into a stone by making it heavier `(pebble 'set-mass! 2700)` and changing its name `(pebble 'set-name! "stone")`
 
-For further documentation on things and the available qualities, check the full documentation *(somewhere in the Racket docs, I don't know where the link is I think I have to wait until the next time Racket rebuilds their package library in a few hours.)*
+For further documentation on things and the available qualities, check the [full documentation](https://docs.racket-lang.org/qtops/index.html). You can also join the #qtops channel on Freenode.
 
 ## Contributing
 
